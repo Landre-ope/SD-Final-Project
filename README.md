@@ -2,6 +2,8 @@
 
 A responsive frontend prototype for centralized rental property administration. It covers the tenant login, dashboard, payment overview, maintenance request, and basement reservation workflows described in the project requirements.
 
+The demo now persists account activity in the browser with `localStorage`: submitted maintenance requests, basement reservations, and rent payments update the dashboard, activity history, notifications, and calendar after refresh. This is client-side demo persistence; a production deployment should replace it with authenticated API/database storage.
+
 ## Run locally
 
 This is a dependency-free static prototype. Open `index.html` directly in a browser, or serve the project directory with any static file server:
