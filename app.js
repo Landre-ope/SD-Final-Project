@@ -82,6 +82,27 @@ const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (character) => (
 }[character]));
 const formatLongDate = (key) => new Date(`${key}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 const formatShortDate = (key) => new Date(`${key}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const recurringCalendarEvents = (year, month) => [
+  { date: dateKey(year, month, 25), type: "payment", title: "Rent payment due", detail: `${RENT_AMOUNT} · Rent due every 25th`, color: "payment", recurring: true },
+  ...[26, 27, 28, 29, 30].filter((day) => day <= new Date(year, month + 1, 0).getDate()).map((day) => ({
+    date: dateKey(year, month, day),
+    type: "grace",
+    title: day === 30 ? "Last day for extended payment" : "Extended payment available",
+    detail: day === 30 ? "Late fee may apply after today" : `${day === 26 ? "Grace period starts · " : "Grace period · "}${RENT_AMOUNT}`,
+    color: "grace",
+    recurring: true,
+  })),
+];
+const calendarEventsForMonth = (year, month) => {
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}-`;
+  const savedEvents = state.events.filter((event) => event.date?.startsWith(monthPrefix));
+  const savedKeys = new Set(savedEvents.map((event) => `${event.date}:${event.type}`));
+  return [...savedEvents, ...recurringCalendarEvents(year, month).filter((event) => !savedKeys.has(`${event.date}:${event.type}`))];
+};
+const calendarEventsForDate = (key) => {
+  const date = new Date(`${key}T12:00:00`);
+  return calendarEventsForMonth(date.getFullYear(), date.getMonth()).filter((event) => event.date === key);
+};
 
 const showScreen = (name) => {
   const target = screens.includes(name) ? name : "dashboard";
@@ -123,13 +144,18 @@ function renderCalendar() {
   for (let day = 1; day <= daysInMonth; day += 1) {
     const key = dateKey(year, month, day);
     const cell = document.createElement("button");
-    cell.className = `calendar-day ${key === selectedDate ? "selected" : ""}`;
+    const isDueDate = day === 25;
+    cell.className = `calendar-day ${key === selectedDate ? "selected" : ""} ${isDueDate ? "due-date" : ""}`;
     cell.dataset.date = key;
-    cell.innerHTML = `<b>${day}</b>`;
-    state.events.filter((event) => event.date === key).slice(0, 3).forEach((event) => {
+    cell.setAttribute("aria-label", isDueDate ? `${formatLongDate(key)}. Monthly rent due date.` : formatLongDate(key));
+    cell.innerHTML = `<b>${day}</b>${isDueDate ? '<span class="due-date-notch" title="Monthly rent due date">Due</span>' : ""}<span class="day-markers"></span>`;
+    const markers = cell.querySelector(".day-markers");
+    calendarEventsForDate(key).slice(0, 3).forEach((event) => {
       const marker = document.createElement("i");
       marker.className = `${event.type}-dot`;
-      cell.appendChild(marker);
+      marker.setAttribute("aria-label", event.title);
+      marker.title = event.title;
+      markers.appendChild(marker);
     });
     grid.appendChild(cell);
   }
@@ -137,7 +163,7 @@ function renderCalendar() {
 }
 
 function renderSelectedDay() {
-  const dayEvents = state.events.filter((event) => event.date === selectedDate);
+  const dayEvents = calendarEventsForDate(selectedDate);
   document.querySelector("#selected-date").textContent = formatLongDate(selectedDate);
   document.querySelector("#selected-count").textContent = `${dayEvents.length} ${dayEvents.length === 1 ? "event" : "events"}`;
   document.querySelector("#selected-events").innerHTML = dayEvents.length
