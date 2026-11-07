@@ -24,6 +24,7 @@ const defaultState = { events: defaultEvents, activities: defaultActivities, pay
   { title: "October rent", detail: "Paid October 01, 2024", amount: "₱6,000" },
   { title: "September rent", detail: "Paid September 01, 2024", amount: "₱6,000" },
 ], currentPaymentPaid: false };
+defaultState.pendingPayment = null;
 
 const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 let state;
@@ -37,6 +38,7 @@ const migrateRentAmount = (value) => typeof value === "string" ? value.replace(/
 state.events.forEach((event) => { event.detail = migrateRentAmount(event.detail); });
 state.activities.forEach((activity) => { activity.detail = migrateRentAmount(activity.detail); });
 state.payments.forEach((payment) => { payment.amount = migrateRentAmount(payment.amount); });
+if (!Object.prototype.hasOwnProperty.call(state, "pendingPayment")) state.pendingPayment = null;
 saveState();
 let calendarDate = new Date(2024, 9, 1);
 let selectedDate = "2024-10-18";
@@ -68,9 +70,9 @@ function renderDashboard() {
   const paymentLabel = document.querySelector("#dashboard-payment-label");
   const paymentProgress = document.querySelector("#dashboard-payment-progress");
   paymentAmount.textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
-  paymentBadge.textContent = state.currentPaymentPaid ? "Paid" : "Due in 7 days";
-  paymentLabel.textContent = state.currentPaymentPaid ? "November rent paid" : "Rent for November";
-  paymentProgress.style.width = state.currentPaymentPaid ? "100%" : "75%";
+  paymentBadge.textContent = state.currentPaymentPaid ? "Paid" : state.pendingPayment ? "Awaiting approval" : "Due in 7 days";
+  paymentLabel.textContent = state.currentPaymentPaid ? "November rent paid" : state.pendingPayment ? "Payment submitted" : "Rent for November";
+  paymentProgress.style.width = state.currentPaymentPaid ? "100%" : state.pendingPayment ? "90%" : "75%";
 
   const upcoming = [...state.events].filter((event) => ["maintenance", "booking", "payment", "grace"].includes(event.type)).slice(-4);
   document.querySelector("#dashboard-calendar-events").innerHTML = upcoming.map((event) => `<div class="mini-event"><span class="date-tile ${event.type === "booking" ? "peach-tile" : event.type === "payment" ? "due-tile" : ""}"><b>${event.date.slice(8)}</b><small>${new Date(`${event.date}T12:00:00`).toLocaleDateString("en-US", { month: "short" })}</small></span><div><b>${escapeHTML(event.title)}</b><small>${escapeHTML(event.detail)}</small></div><span class="event-dot ${event.type}-dot"></span></div>`).join("");
@@ -113,11 +115,19 @@ function renderSelectedDay() {
 
 function renderPayments() {
   document.querySelector("#payment-page-amount").textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
-  document.querySelector("#payment-page-status").textContent = state.currentPaymentPaid ? "November rent · Paid November 01, 2024" : "November rent · Due November 1, 2024";
+  document.querySelector("#payment-page-status").textContent = state.currentPaymentPaid
+    ? "November rent · Approved November 01, 2024"
+    : state.pendingPayment
+      ? "November rent · Waiting for landlord approval"
+      : "November rent · Due November 1, 2024";
   const payButton = document.querySelector("#pay-now");
-  payButton.textContent = state.currentPaymentPaid ? "Rent paid successfully" : "Mark rent as paid";
-  payButton.disabled = state.currentPaymentPaid;
-  document.querySelector("#payment-history").innerHTML = state.payments.map((payment) => `<div class="activity-item"><span class="activity-icon blue">✓</span><div><b>${escapeHTML(payment.title)}</b><small>${escapeHTML(payment.detail)}</small></div><strong>${escapeHTML(payment.amount)}</strong></div>`).join("");
+  payButton.textContent = state.currentPaymentPaid ? "Rent payment approved" : state.pendingPayment ? "Payment submitted for review" : "Submit payment for verification";
+  payButton.disabled = state.currentPaymentPaid || Boolean(state.pendingPayment);
+  document.querySelector("#owner-payment-review").classList.toggle("hidden", !state.pendingPayment);
+  const pendingMarkup = state.pendingPayment
+    ? `<div class="activity-item"><span class="activity-icon peach">₱</span><div><b>November rent payment</b><small>Submitted ${escapeHTML(state.pendingPayment.detail)}</small></div><span class="activity-status pending">Owner review</span></div>`
+    : "";
+  document.querySelector("#payment-history").innerHTML = pendingMarkup + state.payments.map((payment) => `<div class="activity-item"><span class="activity-icon blue">✓</span><div><b>${escapeHTML(payment.title)}</b><small>${escapeHTML(payment.detail)}</small></div><strong>${escapeHTML(payment.amount)}</strong></div>`).join("");
 }
 
 function renderActivity() {
@@ -176,6 +186,42 @@ function cancelActivity(id, type) {
   showScreen("dashboard");
 }
 
+function submitPaymentForApproval() {
+  state.pendingPayment = { id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`, detail: "November 01, 2024 · ₱6,000" };
+  state.activities.unshift({ id: state.pendingPayment.id, type: "payment", icon: "₱", color: "peach", title: "Rent payment submitted", detail: state.pendingPayment.detail, status: "Owner review", statusClass: "pending" });
+  saveState();
+  renderPayments();
+  renderDashboard();
+  renderActivity();
+}
+
+function approvePayment() {
+  if (!state.pendingPayment) return;
+  const paymentId = state.pendingPayment.id;
+  state.currentPaymentPaid = true;
+  state.pendingPayment = null;
+  state.payments.unshift({ title: "November rent", detail: "Approved November 01, 2024", amount: RENT_AMOUNT });
+  state.activities = state.activities.filter((activity) => activity.id !== paymentId);
+  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment approved", detail: `November 01, 2024 · ${RENT_AMOUNT}`, status: "Completed", statusClass: "" });
+  state.events.unshift({ date: "2024-11-01", type: "payment", title: "Rent payment approved", detail: `${RENT_AMOUNT} · November rent`, color: "payment" });
+  saveState();
+  renderPayments();
+  renderDashboard();
+  renderActivity();
+}
+
+function declinePayment() {
+  if (!state.pendingPayment) return;
+  const paymentId = state.pendingPayment.id;
+  state.pendingPayment = null;
+  state.activities = state.activities.filter((activity) => activity.id !== paymentId);
+  state.activities.unshift({ icon: "!", color: "peach", title: "Rent payment declined", detail: "Please submit proof of payment again.", status: "Action needed", statusClass: "pending" });
+  saveState();
+  renderPayments();
+  renderDashboard();
+  renderActivity();
+}
+
 const maintenanceForm = document.querySelector("#maintenance-form");
 maintenanceForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -222,15 +268,9 @@ document.querySelector("#booking-form").addEventListener("submit", (event) => {
   showScreen("booking-success");
 });
 
-document.querySelector("#pay-now").addEventListener("click", () => {
-  state.currentPaymentPaid = true;
-  state.payments.unshift({ title: "November rent", detail: "Paid November 01, 2024", amount: RENT_AMOUNT });
-  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment completed", detail: `November 01, 2024 · ${RENT_AMOUNT}`, status: "Completed", statusClass: "" });
-  state.events.unshift({ date: "2024-11-01", type: "payment", title: "Rent payment completed", detail: `${RENT_AMOUNT} · November rent`, color: "payment" });
-  saveState();
-  renderPayments();
-  renderDashboard();
-});
+document.querySelector("#pay-now").addEventListener("click", submitPaymentForApproval);
+document.querySelector("#approve-payment").addEventListener("click", approvePayment);
+document.querySelector("#decline-payment").addEventListener("click", declinePayment);
 
 renderDashboard();
 renderCalendar();
