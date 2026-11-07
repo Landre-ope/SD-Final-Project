@@ -29,17 +29,17 @@
           <form id="login-form" class="stack-form">
             <label>Email address<input name="email" type="email" value="tenant@example.com" required /></label>
             <label>Password<div class="password-input"><input name="password" type="password" value="password" required /><button type="button" class="toggle-password" aria-label="Show password">Show</button></div></label>
-            <div class="form-row form-row-between"><label class="check-label"><input type="checkbox" checked /> Remember me</label><a href="#" class="text-link">Forgot password?</a></div>
+            <div class="form-row form-row-between"><label class="check-label"><input type="checkbox" checked /> Remember me</label><button type="button" class="text-link link-button" data-route="forgot">Forgot password?</button></div>
             <button class="button button-primary button-wide" type="submit">Sign in <span>→</span></button>
           </form>
-          <p class="form-footnote">Need help? <a href="#" class="text-link">Contact your property manager</a></p>
+          <p class="form-footnote">Need help? <button type="button" class="text-link link-button" data-route="contact">Contact your property manager</button></p>
         </div>
       </section>
 
       <section id="dashboard-screen" class="screen app-screen hidden">
         <header class="topbar">
           <div class="brand"><span class="brand-mark">T</span><span>TenantHub</span></div>
-          <div class="topbar-actions"><button class="icon-button notification-button" aria-label="Notifications">⌁<i></i></button><button class="avatar" aria-label="Open profile">LC</button></div>
+          <div class="topbar-actions"><button class="icon-button notification-button" aria-label="Notifications" data-route="notifications">⌁<i></i></button><button class="avatar" aria-label="Open profile" data-route="profile">LC</button></div>
         </header>
         <main class="dashboard-content">
           <div class="welcome-row"><div><p class="eyebrow">MONDAY, OCTOBER 14, 2024</p><h2>Good morning, Landre <span>✦</span></h2><p class="muted">Here's what's happening with your home.</p></div><div class="desktop-avatar avatar large">LC</div></div>
@@ -51,14 +51,54 @@
             </article>
             <article class="payment-card card-surface">
               <div class="card-heading"><div><p class="card-kicker">NEXT PAYMENT</p><h3>₱12,500</h3></div><span class="due-badge">Due in 7 days</span></div>
-              <div class="progress-track"><span></span></div><div class="payment-bottom"><span>Rent for November</span><button class="text-button">View details →</button></div>
+              <div class="progress-track"><span></span></div><div class="payment-bottom"><span>Rent for November</span><button class="text-button" data-route="payments">View details →</button></div>
             </article>
             <article class="quick-actions card-surface"><div class="card-heading"><div><p class="card-kicker">QUICK ACTIONS</p><h3>How can we help?</h3></div></div><div class="action-grid"><button class="action-button" data-route="maintenance"><span class="action-icon blue">⌁</span><b>Report an issue</b><small>Maintenance request</small></button><button class="action-button" data-route="booking"><span class="action-icon peach">▣</span><b>Book the basement</b><small>Reserve an amenity</small></button></div></article>
-            <article class="activity-card card-surface"><div class="card-heading"><div><p class="card-kicker">RECENT ACTIVITY</p><h3>Your updates</h3></div><button class="text-button">See all</button></div><div class="activity-item"><span class="activity-icon blue">✓</span><div><b>Rent payment received</b><small>October 01, 2024 · ₱12,500</small></div><span class="activity-status">Completed</span></div><div class="activity-item"><span class="activity-icon peach">⌁</span><div><b>Leaking faucet reported</b><small>September 28, 2024</small></div><span class="activity-status pending">In review</span></div></article>
+            <article class="calendar-preview card-surface"><div class="card-heading"><div><p class="card-kicker">UPCOMING</p><h3>Your calendar</h3></div><button class="text-button" data-route="calendar">Open calendar →</button></div><div class="mini-event"><span class="date-tile"><b>18</b><small>OCT</small></span><div><b>Maintenance visit</b><small>10:00 AM · Unit 302</small></div><span class="event-dot maintenance-dot"></span></div><div class="mini-event"><span class="date-tile peach-tile"><b>26</b><small>OCT</small></span><div><b>Basement booking</b><small>09:00 AM – 12:00 PM</small></div><span class="event-dot booking-dot"></span></div><div class="mini-event"><span class="date-tile due-tile"><b>01</b><small>NOV</small></span><div><b>Rent payment due</b><small>₱12,500 · 5-day grace period</small></div><span class="event-dot payment-dot"></span></div></article>
+            <article class="activity-card card-surface"><div class="card-heading"><div><p class="card-kicker">RECENT ACTIVITY</p><h3>Your updates</h3></div><button class="text-button" data-route="activity">See all</button></div><div class="activity-item"><span class="activity-icon blue">✓</span><div><b>Rent payment received</b><small>October 01, 2024 · ₱12,500</small></div><span class="activity-status">Completed</span></div><div class="activity-item"><span class="activity-icon peach">⌁</span><div><b>Leaking faucet reported</b><small>September 28, 2024</small></div><span class="activity-status pending">In review</span></div></article>
           </div>
         </main>
-        <nav class="bottom-nav"><button class="active"><span>⌂</span>Home</button><button><span>▤</span>Payments</button><button data-route="maintenance"><span>⌁</span>Requests</button><button data-route="booking"><span>▣</span>Bookings</button></nav>
+        <nav class="bottom-nav"><button class="active" data-route="dashboard"><span>⌂</span>Home</button><button data-route="calendar"><span>▦</span>Calendar</button><button data-route="payments"><span>₱</span>Payments</button><button data-route="maintenance"><span>⌁</span>Requests</button><button data-route="booking"><span>▣</span>Bookings</button></nav>
       </section>
+
+      <section id="calendar-screen" class="screen app-screen hidden">
+        <header class="simple-header calendar-header"><button class="back-button" data-route="dashboard">←</button><div><p class="eyebrow">YOUR SCHEDULE</p><h2>Calendar</h2></div><button class="icon-button" data-route="calendar-help" aria-label="Calendar help">?</button></header>
+        <main class="calendar-content">
+          <div class="calendar-toolbar"><button class="month-arrow" data-calendar-action="previous" aria-label="Previous month">‹</button><h3 id="calendar-month">October 2024</h3><button class="month-arrow" data-calendar-action="next" aria-label="Next month">›</button></div>
+          <div class="calendar-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+          <div id="calendar-grid" class="calendar-grid"></div>
+          <div class="calendar-legend"><span><i class="maintenance-dot"></i>Maintenance</span><span><i class="booking-dot"></i>Booking</span><span><i class="payment-dot"></i>Payment</span><span><i class="grace-dot"></i>Grace period</span></div>
+          <div class="selected-day-card card-surface"><div class="card-heading"><div><p class="card-kicker">SELECTED DAY</p><h3 id="selected-date">Friday, October 18</h3></div><span id="selected-count" class="due-badge">1 event</span></div><div id="selected-events" class="selected-events"></div></div>
+          <div class="calendar-note"><span>i</span><p>Your payment grace period runs for five days after the due date. Late payment availability is shown in orange on the calendar.</p></div>
+        </main>
+        <nav class="bottom-nav"><button data-route="dashboard"><span>⌂</span>Home</button><button class="active" data-route="calendar"><span>▦</span>Calendar</button><button data-route="payments"><span>₱</span>Payments</button><button data-route="maintenance"><span>⌁</span>Requests</button><button data-route="booking"><span>▣</span>Bookings</button></nav>
+      </section>
+
+      <section id="payments-screen" class="screen app-screen hidden">
+        <header class="simple-header"><button class="back-button" data-route="dashboard">←</button><div><p class="eyebrow">PAYMENT CENTER</p><h2>Payments</h2></div></header>
+        <main class="flow-content"><article class="payment-summary card-surface"><p class="card-kicker">NEXT PAYMENT DUE</p><h1>₱12,500</h1><p class="muted">November rent · Due November 1, 2024</p><div class="payment-dates"><span><small>ON TIME UNTIL</small><b>Nov 1</b></span><span><small>EXTENDED PAYMENT</small><b>Nov 2 – 6</b></span></div></article><h3 class="section-title">Payment history</h3><div class="history-list card-surface"><div class="activity-item"><span class="activity-icon blue">✓</span><div><b>October rent</b><small>Paid October 01, 2024</small></div><strong>₱12,500</strong></div><div class="activity-item"><span class="activity-icon blue">✓</span><div><b>September rent</b><small>Paid September 01, 2024</small></div><strong>₱12,500</strong></div></div><button class="button button-primary button-wide" data-route="calendar">View payment dates on calendar</button></main>
+        <nav class="bottom-nav"><button data-route="dashboard"><span>⌂</span>Home</button><button data-route="calendar"><span>▦</span>Calendar</button><button class="active" data-route="payments"><span>₱</span>Payments</button><button data-route="maintenance"><span>⌁</span>Requests</button><button data-route="booking"><span>▣</span>Bookings</button></nav>
+      </section>
+
+      <section id="notifications-screen" class="screen app-screen hidden">
+        <header class="simple-header"><button class="back-button" data-route="dashboard">←</button><div><p class="eyebrow">UPDATES</p><h2>Notifications</h2></div><button class="text-button" data-action="mark-read">Mark all read</button></header>
+        <main class="flow-content"><div id="notification-list" class="notification-list card-surface"><div class="notification-item unread"><span class="activity-icon peach">⌁</span><div><b>Maintenance visit scheduled</b><small>October 18 at 10:00 AM · Unit 302</small></div><i></i></div><div class="notification-item unread"><span class="activity-icon blue">₱</span><div><b>Rent is due soon</b><small>Your November payment is due November 1.</small></div><i></i></div><div class="notification-item"><span class="activity-icon peach">▣</span><div><b>Basement booking pending</b><small>October 26 reservation is awaiting approval.</small></div></div></div></main>
+        <nav class="bottom-nav"><button data-route="dashboard"><span>⌂</span>Home</button><button data-route="calendar"><span>▦</span>Calendar</button><button data-route="payments"><span>₱</span>Payments</button><button data-route="maintenance"><span>⌁</span>Requests</button><button data-route="booking"><span>▣</span>Bookings</button></nav>
+      </section>
+
+      <section id="profile-screen" class="screen app-screen hidden">
+        <header class="simple-header"><button class="back-button" data-route="dashboard">←</button><div><p class="eyebrow">ACCOUNT</p><h2>Profile</h2></div></header>
+        <main class="flow-content"><div class="profile-heading"><div class="avatar large">LC</div><div><h3>Landre Crisostomo</h3><p class="muted">tenant@example.com</p></div></div><div class="settings-list card-surface"><button data-route="contact"><span>☏</span><div><b>Contact property manager</b><small>Get help with your rental</small></div><strong>›</strong></button><button data-route="calendar"><span>▦</span><div><b>My calendar</b><small>View upcoming events and due dates</small></div><strong>›</strong></button><button data-route="login"><span>↪</span><div><b>Sign out</b><small>Return to the login screen</small></div><strong>›</strong></button></div></main>
+      </section>
+
+      <section id="activity-screen" class="screen app-screen hidden">
+        <header class="simple-header"><button class="back-button" data-route="dashboard">←</button><div><p class="eyebrow">HISTORY</p><h2>Recent activity</h2></div></header>
+        <main class="flow-content"><div class="history-list card-surface"><div class="activity-item"><span class="activity-icon blue">✓</span><div><b>Rent payment received</b><small>October 01, 2024 · ₱12,500</small></div><span class="activity-status">Completed</span></div><div class="activity-item"><span class="activity-icon peach">⌁</span><div><b>Leaking faucet reported</b><small>September 28, 2024 · Request #MR-1048</small></div><span class="activity-status pending">In review</span></div><div class="activity-item"><span class="activity-icon peach">▣</span><div><b>Basement reservation requested</b><small>October 26, 2024 · Pending approval</small></div><span class="activity-status pending">Pending</span></div></div></main>
+      </section>
+
+      <section id="forgot-screen" class="screen centered-screen hidden"><div class="success-orbit"><div class="success-check">✉</div></div><p class="eyebrow">PASSWORD HELP</p><h1>Check your inbox.</h1><p class="muted">A password reset link would be sent to <b>tenant@example.com</b> in a connected production system.</p><button class="button button-primary button-wide" data-route="login">Back to sign in</button></section>
+      <section id="contact-screen" class="screen centered-screen hidden"><div class="success-orbit booking-orbit"><div class="success-check">☏</div></div><p class="eyebrow">PROPERTY SUPPORT</p><h1>We're here to help.</h1><p class="muted">Contact your property manager at <b>manager@tenanthub.test</b> or call <b>+63 917 555 0142</b>.</p><button class="button button-primary button-wide" data-route="dashboard">Back to dashboard</button></section>
+      <section id="calendar-help-screen" class="screen centered-screen hidden"><div class="success-orbit"><div class="success-check">i</div></div><p class="eyebrow">CALENDAR GUIDE</p><h1>Stay ahead of every date.</h1><p class="muted">Blue marks maintenance, peach marks basement bookings, blue-green marks payment deadlines, and orange marks the five-day extended payment window.</p><button class="button button-primary button-wide" data-route="calendar">Back to calendar</button></section>
 
       <section id="maintenance-screen" class="screen app-screen form-screen hidden">
         <header class="simple-header"><button class="back-button" data-route="dashboard">←</button><div><p class="eyebrow">NEW REQUEST</p><h2>Report an issue</h2></div><span class="step-count">1 of 2</span></header>
@@ -77,7 +117,7 @@
         <main class="flow-content"><div class="amenity-banner"><span>▣</span><div><b>Community basement</b><small>Available for private events and gatherings</small></div></div><p class="muted intro">Choose a date and time for your reservation.</p><form id="booking-form" class="stack-form"><label>Date<input name="date" type="date" value="2024-10-26" required /></label><div class="form-row"><label>Start time<select name="start"><option>09:00 AM</option><option>01:00 PM</option><option>05:00 PM</option></select></label><label>End time<select name="end"><option>12:00 PM</option><option>04:00 PM</option><option>09:00 PM</option></select></label></div><label>Purpose of reservation<select name="purpose"><option>Birthday celebration</option><option>Family gathering</option><option>Other</option></select></label><label>Additional notes<textarea rows="4" placeholder="Tell us anything we should know..."></textarea></label><button class="button button-primary button-wide" type="submit">Request reservation <span>→</span></button></form></main>
       </section>
 
-      <section id="booking-success-screen" class="screen centered-screen hidden"><div class="success-orbit booking-orbit"><div class="success-check">✓</div></div><p class="eyebrow">RESERVATION REQUESTED</p><h1>Your space is on hold.</h1><p class="muted">We'll review your request and send a confirmation once it's approved.</p><div class="success-card"><span class="activity-icon peach">▣</span><div><b>Saturday, October 26</b><small>09:00 AM – 12:00 PM · Community basement</small></div><span class="activity-status pending">Pending</span></div><button class="button button-primary button-wide" data-route="dashboard">Back to dashboard</button></section>
+      <section id="booking-success-screen" class="screen centered-screen hidden"><div class="success-orbit booking-orbit"><div class="success-check">✓</div></div><p class="eyebrow">RESERVATION REQUESTED</p><h1>Your space is on hold.</h1><p class="muted">We'll review your request and send a confirmation once it's approved.</p><div class="success-card"><span class="activity-icon peach">▣</span><div><b id="booking-success-date">Saturday, October 26</b><small id="booking-success-time">09:00 AM – 12:00 PM · Community basement</small></div><span class="activity-status pending">Pending</span></div><button class="button button-primary button-wide" data-route="dashboard">Back to dashboard</button></section>
     </div>
     <script src="app.js"></script>
   </body>
