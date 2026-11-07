@@ -27,9 +27,9 @@ const APP_NOW = partsForPhilippineNow();
 const dateKey = (year, month, day) => `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 const CURRENT_DATE_KEY = dateKey(APP_NOW.year, APP_NOW.month, APP_NOW.day);
 const CURRENT_MONTH_KEY = dateKey(APP_NOW.year, APP_NOW.month, 1);
-const PAYMENT_DUE_KEY = CURRENT_MONTH_KEY;
-const GRACE_START_KEY = dateKey(APP_NOW.year, APP_NOW.month, 2);
-const GRACE_END_KEY = dateKey(APP_NOW.year, APP_NOW.month, 6);
+const PAYMENT_DUE_KEY = dateKey(APP_NOW.year, APP_NOW.month, 25);
+const GRACE_START_KEY = dateKey(APP_NOW.year, APP_NOW.month, 26);
+const GRACE_END_KEY = dateKey(APP_NOW.year, APP_NOW.month, 30);
 const currentMonthLabel = new Date(`${CURRENT_MONTH_KEY}T12:00:00`).toLocaleDateString("en-US", { month: "long" });
 const previousMonthDate = new Date(APP_NOW.year, APP_NOW.month - 1, 1);
 const previousPreviousMonthDate = new Date(APP_NOW.year, APP_NOW.month - 2, 1);
@@ -37,7 +37,7 @@ const monthYearLabel = (date) => date.toLocaleDateString("en-US", { month: "long
 const dateLabel = (key, options = { month: "long", day: "numeric", year: "numeric" }) => new Date(`${key}T12:00:00`).toLocaleDateString("en-US", options);
 const defaultEvents = [
   { date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment due", detail: `${RENT_AMOUNT} · ${currentMonthLabel} rent`, color: "payment" },
-  ...[2, 3, 4, 5, 6].map((day) => ({ date: dateKey(APP_NOW.year, APP_NOW.month, day), type: "grace", title: day === 6 ? "Last day for extended payment" : "Extended payment available", detail: day === 6 ? "Late fee may apply after today" : `${day === 2 ? "Grace period starts · " : "Grace period · "}${RENT_AMOUNT}`, color: "grace" })),
+  ...[26, 27, 28, 29, 30].map((day) => ({ date: dateKey(APP_NOW.year, APP_NOW.month, day), type: "grace", title: day === 30 ? "Last day for extended payment" : "Extended payment available", detail: day === 30 ? "Late fee may apply after today" : `${day === 26 ? "Grace period starts · " : "Grace period · "}${RENT_AMOUNT}`, color: "grace" })),
 ];
 const defaultState = { events: defaultEvents, activities: [], payments: [
   { title: `${monthYearLabel(previousMonthDate).split(" ")[0]} rent`, detail: `Paid ${dateLabel(dateKey(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), 1))}`, amount: RENT_AMOUNT },
