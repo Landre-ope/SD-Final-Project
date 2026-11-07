@@ -6,8 +6,6 @@ const screens = [
 const STORAGE_KEY = "tenanthub-demo-account";
 const RENT_AMOUNT = "₱6,000";
 const defaultEvents = [
-  { date: "2024-10-18", type: "maintenance", title: "Maintenance visit", detail: "10:00 AM · Unit 302", color: "blue" },
-  { date: "2024-10-26", type: "booking", title: "Basement booking", detail: "09:00 AM – 12:00 PM · Community basement", color: "peach" },
   { date: "2024-11-01", type: "payment", title: "Rent payment due", detail: "₱6,000 · November rent", color: "payment" },
   { date: "2024-11-02", type: "grace", title: "Extended payment available", detail: "Grace period starts · ₱6,000", color: "grace" },
   { date: "2024-11-03", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
@@ -17,8 +15,6 @@ const defaultEvents = [
 ];
 const defaultActivities = [
   { icon: "✓", color: "blue", title: "Rent payment received", detail: "October 01, 2024 · ₱6,000", status: "Completed", statusClass: "" },
-  { icon: "⌁", color: "peach", title: "Leaking faucet reported", detail: "September 28, 2024 · Request #MR-1048", status: "In review", statusClass: "pending" },
-  { icon: "▣", color: "peach", title: "Basement reservation requested", detail: "October 26, 2024 · Pending approval", status: "Pending", statusClass: "pending" },
 ];
 const defaultState = { events: defaultEvents, activities: defaultActivities, payments: [
   { title: "October rent", detail: "Paid October 01, 2024", amount: "₱6,000" },
@@ -38,6 +34,8 @@ const migrateRentAmount = (value) => typeof value === "string" ? value.replace(/
 state.events.forEach((event) => { event.detail = migrateRentAmount(event.detail); });
 state.activities.forEach((activity) => { activity.detail = migrateRentAmount(activity.detail); });
 state.payments.forEach((payment) => { payment.amount = migrateRentAmount(payment.amount); });
+state.events = state.events.filter((event) => event.id || !["Maintenance visit", "Basement booking"].includes(event.title));
+state.activities = state.activities.filter((activity) => activity.id || !["Leaking faucet reported", "Basement reservation requested"].includes(activity.title));
 if (!Object.prototype.hasOwnProperty.call(state, "pendingPayment")) state.pendingPayment = null;
 saveState();
 let calendarDate = new Date(2024, 9, 1);
