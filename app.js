@@ -4,37 +4,44 @@ const screens = [
   "success", "booking", "booking-success",
 ];
 const STORAGE_KEY = "tenanthub-demo-account";
+const RENT_AMOUNT = "₱6,000";
 const defaultEvents = [
   { date: "2024-10-18", type: "maintenance", title: "Maintenance visit", detail: "10:00 AM · Unit 302", color: "blue" },
   { date: "2024-10-26", type: "booking", title: "Basement booking", detail: "09:00 AM – 12:00 PM · Community basement", color: "peach" },
-  { date: "2024-11-01", type: "payment", title: "Rent payment due", detail: "₱12,500 · November rent", color: "payment" },
-  { date: "2024-11-02", type: "grace", title: "Extended payment available", detail: "Grace period starts · ₱12,500", color: "grace" },
-  { date: "2024-11-03", type: "grace", title: "Extended payment available", detail: "Grace period · ₱12,500", color: "grace" },
-  { date: "2024-11-04", type: "grace", title: "Extended payment available", detail: "Grace period · ₱12,500", color: "grace" },
-  { date: "2024-11-05", type: "grace", title: "Extended payment available", detail: "Grace period · ₱12,500", color: "grace" },
+  { date: "2024-11-01", type: "payment", title: "Rent payment due", detail: "₱6,000 · November rent", color: "payment" },
+  { date: "2024-11-02", type: "grace", title: "Extended payment available", detail: "Grace period starts · ₱6,000", color: "grace" },
+  { date: "2024-11-03", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
+  { date: "2024-11-04", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
+  { date: "2024-11-05", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
   { date: "2024-11-06", type: "grace", title: "Last day for extended payment", detail: "Late fee may apply after today", color: "grace" },
 ];
 const defaultActivities = [
-  { icon: "✓", color: "blue", title: "Rent payment received", detail: "October 01, 2024 · ₱12,500", status: "Completed", statusClass: "" },
+  { icon: "✓", color: "blue", title: "Rent payment received", detail: "October 01, 2024 · ₱6,000", status: "Completed", statusClass: "" },
   { icon: "⌁", color: "peach", title: "Leaking faucet reported", detail: "September 28, 2024 · Request #MR-1048", status: "In review", statusClass: "pending" },
   { icon: "▣", color: "peach", title: "Basement reservation requested", detail: "October 26, 2024 · Pending approval", status: "Pending", statusClass: "pending" },
 ];
 const defaultState = { events: defaultEvents, activities: defaultActivities, payments: [
-  { title: "October rent", detail: "Paid October 01, 2024", amount: "₱12,500" },
-  { title: "September rent", detail: "Paid September 01, 2024", amount: "₱12,500" },
+  { title: "October rent", detail: "Paid October 01, 2024", amount: "₱6,000" },
+  { title: "September rent", detail: "Paid September 01, 2024", amount: "₱6,000" },
 ], currentPaymentPaid: false };
 
+const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 let state;
+const cloneState = (value) => JSON.parse(JSON.stringify(value));
 try {
-  state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || structuredClone(defaultState);
+  state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || cloneState(defaultState);
 } catch {
-  state = structuredClone(defaultState);
+  state = cloneState(defaultState);
 }
+const migrateRentAmount = (value) => typeof value === "string" ? value.replace(/₱12,500/g, RENT_AMOUNT) : value;
+state.events.forEach((event) => { event.detail = migrateRentAmount(event.detail); });
+state.activities.forEach((activity) => { activity.detail = migrateRentAmount(activity.detail); });
+state.payments.forEach((payment) => { payment.amount = migrateRentAmount(payment.amount); });
+saveState();
 let calendarDate = new Date(2024, 9, 1);
 let selectedDate = "2024-10-18";
 let pendingMaintenance = null;
 
-const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
 }[character]));
@@ -60,7 +67,7 @@ function renderDashboard() {
   const paymentBadge = document.querySelector("#dashboard-payment-badge");
   const paymentLabel = document.querySelector("#dashboard-payment-label");
   const paymentProgress = document.querySelector("#dashboard-payment-progress");
-  paymentAmount.textContent = state.currentPaymentPaid ? "₱0" : "₱12,500";
+  paymentAmount.textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
   paymentBadge.textContent = state.currentPaymentPaid ? "Paid" : "Due in 7 days";
   paymentLabel.textContent = state.currentPaymentPaid ? "November rent paid" : "Rent for November";
   paymentProgress.style.width = state.currentPaymentPaid ? "100%" : "75%";
@@ -105,7 +112,7 @@ function renderSelectedDay() {
 }
 
 function renderPayments() {
-  document.querySelector("#payment-page-amount").textContent = state.currentPaymentPaid ? "₱0" : "₱12,500";
+  document.querySelector("#payment-page-amount").textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
   document.querySelector("#payment-page-status").textContent = state.currentPaymentPaid ? "November rent · Paid November 01, 2024" : "November rent · Due November 1, 2024";
   const payButton = document.querySelector("#pay-now");
   payButton.textContent = state.currentPaymentPaid ? "Rent paid successfully" : "Mark rent as paid";
@@ -197,9 +204,9 @@ document.querySelector("#booking-form").addEventListener("submit", (event) => {
 
 document.querySelector("#pay-now").addEventListener("click", () => {
   state.currentPaymentPaid = true;
-  state.payments.unshift({ title: "November rent", detail: "Paid November 01, 2024", amount: "₱12,500" });
-  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment completed", detail: "November 01, 2024 · ₱12,500", status: "Completed", statusClass: "" });
-  state.events.unshift({ date: "2024-11-01", type: "payment", title: "Rent payment completed", detail: "₱12,500 · November rent", color: "payment" });
+  state.payments.unshift({ title: "November rent", detail: "Paid November 01, 2024", amount: RENT_AMOUNT });
+  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment completed", detail: `November 01, 2024 · ${RENT_AMOUNT}`, status: "Completed", statusClass: "" });
+  state.events.unshift({ date: "2024-11-01", type: "payment", title: "Rent payment completed", detail: `${RENT_AMOUNT} · November rent`, color: "payment" });
   saveState();
   renderPayments();
   renderDashboard();
