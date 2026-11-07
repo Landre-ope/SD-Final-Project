@@ -5,20 +5,27 @@ const screens = [
 ];
 const STORAGE_KEY = "tenanthub-demo-account";
 const RENT_AMOUNT = "₱6,000";
+const APP_NOW = new Date(2026, 10, 7, 22, 0, 0);
+const CURRENT_DATE_KEY = "2026-11-07";
+const CURRENT_MONTH_KEY = "2026-11-01";
+const PAYMENT_DUE_KEY = "2026-11-01";
+const GRACE_START_KEY = "2026-11-02";
+const GRACE_END_KEY = "2026-11-06";
+const dateLabel = (key, options = { month: "long", day: "numeric", year: "numeric" }) => new Date(`${key}T12:00:00`).toLocaleDateString("en-US", options);
 const defaultEvents = [
-  { date: "2024-11-01", type: "payment", title: "Rent payment due", detail: "₱6,000 · November rent", color: "payment" },
-  { date: "2024-11-02", type: "grace", title: "Extended payment available", detail: "Grace period starts · ₱6,000", color: "grace" },
-  { date: "2024-11-03", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
-  { date: "2024-11-04", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
-  { date: "2024-11-05", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
-  { date: "2024-11-06", type: "grace", title: "Last day for extended payment", detail: "Late fee may apply after today", color: "grace" },
+  { date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment due", detail: "₱6,000 · November rent", color: "payment" },
+  { date: GRACE_START_KEY, type: "grace", title: "Extended payment available", detail: "Grace period starts · ₱6,000", color: "grace" },
+  { date: "2026-11-03", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
+  { date: "2026-11-04", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
+  { date: "2026-11-05", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
+  { date: GRACE_END_KEY, type: "grace", title: "Last day for extended payment", detail: "Late fee may apply after today", color: "grace" },
 ];
 const defaultActivities = [
-  { icon: "✓", color: "blue", title: "Rent payment received", detail: "October 01, 2024 · ₱6,000", status: "Completed", statusClass: "" },
+  { icon: "✓", color: "blue", title: "Rent payment received", detail: "October 01, 2026 · ₱6,000", status: "Completed", statusClass: "" },
 ];
 const defaultState = { events: defaultEvents, activities: defaultActivities, payments: [
-  { title: "October rent", detail: "Paid October 01, 2024", amount: "₱6,000" },
-  { title: "September rent", detail: "Paid September 01, 2024", amount: "₱6,000" },
+  { title: "October rent", detail: "Paid October 01, 2026", amount: "₱6,000" },
+  { title: "September rent", detail: "Paid September 01, 2026", amount: "₱6,000" },
 ], currentPaymentPaid: false };
 defaultState.pendingPayment = null;
 
@@ -36,10 +43,16 @@ state.activities.forEach((activity) => { activity.detail = migrateRentAmount(act
 state.payments.forEach((payment) => { payment.amount = migrateRentAmount(payment.amount); });
 state.events = state.events.filter((event) => event.id || !["Maintenance visit", "Basement booking"].includes(event.title));
 state.activities = state.activities.filter((activity) => activity.id || !["Leaking faucet reported", "Basement reservation requested"].includes(activity.title));
+state.events.forEach((event) => {
+  if (!event.id && event.type === "payment" && event.title === "Rent payment due") event.date = PAYMENT_DUE_KEY;
+  if (!event.id && event.type === "grace") event.date = event.date.replace(/^2024-11-/, "2026-11-");
+});
+state.activities.forEach((activity) => { if (!activity.id) activity.detail = activity.detail.replace(/2024/g, "2026"); });
+state.payments.forEach((payment) => { if (!payment.id) payment.detail = payment.detail.replace(/2024/g, "2026"); });
 if (!Object.prototype.hasOwnProperty.call(state, "pendingPayment")) state.pendingPayment = null;
 saveState();
-let calendarDate = new Date(2024, 9, 1);
-let selectedDate = "2024-10-18";
+let calendarDate = new Date(APP_NOW.getFullYear(), APP_NOW.getMonth(), 1);
+let selectedDate = CURRENT_DATE_KEY;
 let pendingMaintenance = null;
 
 const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (character) => ({
@@ -68,7 +81,7 @@ function renderDashboard() {
   const paymentLabel = document.querySelector("#dashboard-payment-label");
   const paymentProgress = document.querySelector("#dashboard-payment-progress");
   paymentAmount.textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
-  paymentBadge.textContent = state.currentPaymentPaid ? "Paid" : state.pendingPayment ? "Awaiting approval" : "Due in 7 days";
+  paymentBadge.textContent = state.currentPaymentPaid ? "Paid" : state.pendingPayment ? "Awaiting approval" : "Extended payment ended";
   paymentLabel.textContent = state.currentPaymentPaid ? "November rent paid" : state.pendingPayment ? "Payment submitted" : "Rent for November";
   paymentProgress.style.width = state.currentPaymentPaid ? "100%" : state.pendingPayment ? "90%" : "75%";
 
@@ -114,10 +127,10 @@ function renderSelectedDay() {
 function renderPayments() {
   document.querySelector("#payment-page-amount").textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
   document.querySelector("#payment-page-status").textContent = state.currentPaymentPaid
-    ? "November rent · Approved November 01, 2024"
+    ? "November rent · Approved November 01, 2026"
     : state.pendingPayment
       ? "November rent · Waiting for landlord approval"
-      : "November rent · Due November 1, 2024";
+      : "November rent · Due November 1, 2026";
   const payButton = document.querySelector("#pay-now");
   payButton.textContent = state.currentPaymentPaid ? "Rent payment approved" : state.pendingPayment ? "Payment submitted for review" : "Submit payment for verification";
   payButton.disabled = state.currentPaymentPaid || Boolean(state.pendingPayment);
@@ -185,7 +198,7 @@ function cancelActivity(id, type) {
 }
 
 function submitPaymentForApproval() {
-  state.pendingPayment = { id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`, detail: "November 01, 2024 · ₱6,000" };
+  state.pendingPayment = { id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`, detail: "November 01, 2026 · ₱6,000" };
   state.activities.unshift({ id: state.pendingPayment.id, type: "payment", icon: "₱", color: "peach", title: "Rent payment submitted", detail: state.pendingPayment.detail, status: "Owner review", statusClass: "pending" });
   saveState();
   renderPayments();
@@ -198,10 +211,10 @@ function approvePayment() {
   const paymentId = state.pendingPayment.id;
   state.currentPaymentPaid = true;
   state.pendingPayment = null;
-  state.payments.unshift({ title: "November rent", detail: "Approved November 01, 2024", amount: RENT_AMOUNT });
+  state.payments.unshift({ title: "November rent", detail: "Approved November 01, 2026", amount: RENT_AMOUNT });
   state.activities = state.activities.filter((activity) => activity.id !== paymentId);
-  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment approved", detail: `November 01, 2024 · ${RENT_AMOUNT}`, status: "Completed", statusClass: "" });
-  state.events.unshift({ date: "2024-11-01", type: "payment", title: "Rent payment approved", detail: `${RENT_AMOUNT} · November rent`, color: "payment" });
+  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment approved", detail: `November 01, 2026 · ${RENT_AMOUNT}`, status: "Completed", statusClass: "" });
+  state.events.unshift({ date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment approved", detail: `${RENT_AMOUNT} · November rent`, color: "payment" });
   saveState();
   renderPayments();
   renderDashboard();
@@ -275,3 +288,12 @@ renderCalendar();
 renderPayments();
 renderActivity();
 renderNotifications();
+document.querySelector("#dashboard-date").textContent = APP_NOW.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).toUpperCase();
+document.querySelector("#lease-end-date").textContent = "Dec 31, 2026";
+document.querySelector("#calendar-month").textContent = dateLabel(CURRENT_MONTH_KEY, { month: "long", year: "numeric" });
+document.querySelector("#selected-date").textContent = formatLongDate(CURRENT_DATE_KEY);
+document.querySelector("#payment-page-status").textContent = "November rent · Due November 1, 2026";
+document.querySelector("#payment-on-time-date").textContent = "Nov 1";
+document.querySelector("#payment-extended-dates").textContent = "Nov 2 – 6";
+document.querySelector("#maintenance-date").value = CURRENT_DATE_KEY;
+document.querySelector("#booking-date").value = "2026-11-14";
