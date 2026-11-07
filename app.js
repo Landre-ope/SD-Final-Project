@@ -60,7 +60,7 @@ const showScreen = (name) => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
-const activityMarkup = (activity) => `<div class="activity-item"><span class="activity-icon ${escapeHTML(activity.color)}">${escapeHTML(activity.icon)}</span><div><b>${escapeHTML(activity.title)}</b><small>${escapeHTML(activity.detail)}</small></div><span class="activity-status ${escapeHTML(activity.statusClass || "")}">${escapeHTML(activity.status)}</span></div>`;
+const activityMarkup = (activity) => `<div class="activity-item"><span class="activity-icon ${escapeHTML(activity.color)}">${escapeHTML(activity.icon)}</span><div><b>${escapeHTML(activity.title)}</b><small>${escapeHTML(activity.detail)}</small></div><span class="activity-status ${escapeHTML(activity.statusClass || "")}">${escapeHTML(activity.status)}</span>${activity.cancelable ? `<button class="cancel-link" data-action="cancel-item" data-id="${escapeHTML(activity.id)}" data-type="${escapeHTML(activity.type)}">Cancel</button>` : ""}</div>`;
 
 function renderDashboard() {
   const paymentAmount = document.querySelector("#dashboard-payment-amount");
@@ -157,8 +157,24 @@ document.addEventListener("click", (event) => {
   }
   if (event.target.closest("[data-action='mark-read']")) {
     document.querySelectorAll(".notification-item.unread").forEach((item) => item.classList.remove("unread"));
+    return;
+  }
+  const cancelButton = event.target.closest("[data-action^='cancel']");
+  if (cancelButton) {
+    const type = cancelButton.dataset.type || cancelButton.dataset.action.replace("cancel-", "");
+    const id = cancelButton.dataset.id || (type === "maintenance" ? pendingMaintenance?.id : pendingMaintenance?.bookingId);
+    if (id) cancelActivity(id, type);
   }
 });
+
+function cancelActivity(id, type) {
+  const label = type === "maintenance" ? "maintenance report" : "basement booking";
+  if (!window.confirm(`Cancel this ${label}? The property manager will not be notified.`)) return;
+  state.events = state.events.filter((event) => event.id !== id);
+  state.activities = state.activities.filter((activity) => activity.id !== id);
+  saveState();
+  showScreen("dashboard");
+}
 
 const maintenanceForm = document.querySelector("#maintenance-form");
 maintenanceForm.addEventListener("submit", (event) => {
@@ -175,8 +191,9 @@ maintenanceForm.addEventListener("submit", (event) => {
 document.querySelector("#submit-maintenance").addEventListener("click", () => {
   const requestId = `#MR-${Math.floor(1000 + Math.random() * 9000)}`;
   const title = `${pendingMaintenance.category} issue`;
-  state.events.unshift({ date: pendingMaintenance.date, type: "maintenance", title: "Maintenance visit", detail: `${pendingMaintenance.time} · Unit 302`, color: "blue" });
-  state.activities.unshift({ icon: "⌁", color: "blue", title, detail: `${formatShortDate(pendingMaintenance.date)} · Request ${requestId}`, status: "In review", statusClass: "pending" });
+  pendingMaintenance.id = requestId;
+  state.events.unshift({ id: requestId, date: pendingMaintenance.date, type: "maintenance", title: "Maintenance visit", detail: `${pendingMaintenance.time} · Unit 302`, color: "blue" });
+  state.activities.unshift({ id: requestId, type: "maintenance", cancelable: true, icon: "⌁", color: "blue", title, detail: `${formatShortDate(pendingMaintenance.date)} · Request ${requestId}`, status: "In review", statusClass: "pending" });
   saveState();
   document.querySelector("#maintenance-request-id").textContent = requestId;
   document.querySelector("#success-maintenance-title").textContent = title;
@@ -190,15 +207,18 @@ document.querySelector("#booking-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
   const date = data.get("date");
-  const booking = { date, type: "booking", title: "Basement booking", detail: `${data.get("start")} – ${data.get("end")} · Community basement`, color: "peach" };
+  const bookingId = `BK-${Math.floor(1000 + Math.random() * 9000)}`;
+  const booking = { id: bookingId, date, type: "booking", title: "Basement booking", detail: `${data.get("start")} – ${data.get("end")} · Community basement`, color: "peach" };
   state.events = state.events.filter((item) => item.type !== "booking");
   state.events.unshift(booking);
-  state.activities.unshift({ icon: "▣", color: "peach", title: "Basement reservation requested", detail: `${formatLongDate(date)} · Pending approval`, status: "Pending", statusClass: "pending" });
+  state.activities = state.activities.filter((item) => item.type !== "booking");
+  state.activities.unshift({ id: bookingId, type: "booking", cancelable: true, icon: "▣", color: "peach", title: "Basement reservation requested", detail: `${formatLongDate(date)} · Pending approval`, status: "Pending", statusClass: "pending" });
   saveState();
   selectedDate = date;
   calendarDate = new Date(`${date}T12:00:00`);
   document.querySelector("#booking-success-date").textContent = formatLongDate(date);
   document.querySelector("#booking-success-time").textContent = `${data.get("start")} – ${data.get("end")} · Community basement`;
+  pendingMaintenance = { bookingId };
   showScreen("booking-success");
 });
 
