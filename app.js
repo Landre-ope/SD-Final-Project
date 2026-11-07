@@ -5,28 +5,44 @@ const screens = [
 ];
 const STORAGE_KEY = "tenanthub-demo-account";
 const RENT_AMOUNT = "₱6,000";
-const APP_NOW = new Date(2026, 10, 7, 22, 0, 0);
-const CURRENT_DATE_KEY = "2026-11-07";
-const CURRENT_MONTH_KEY = "2026-11-01";
-const PAYMENT_DUE_KEY = "2026-11-01";
-const GRACE_START_KEY = "2026-11-02";
-const GRACE_END_KEY = "2026-11-06";
+const PHILIPPINE_TIME_ZONE = "Asia/Manila";
+const activityResetVersion = 2;
+const partsForPhilippineNow = () => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: PHILIPPINE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date()).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month) - 1,
+    day: Number(parts.day),
+    hour: Number(parts.hour) % 24,
+  };
+};
+const APP_NOW = partsForPhilippineNow();
+const dateKey = (year, month, day) => `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+const CURRENT_DATE_KEY = dateKey(APP_NOW.year, APP_NOW.month, APP_NOW.day);
+const CURRENT_MONTH_KEY = dateKey(APP_NOW.year, APP_NOW.month, 1);
+const PAYMENT_DUE_KEY = CURRENT_MONTH_KEY;
+const GRACE_START_KEY = dateKey(APP_NOW.year, APP_NOW.month, 2);
+const GRACE_END_KEY = dateKey(APP_NOW.year, APP_NOW.month, 6);
+const currentMonthLabel = new Date(`${CURRENT_MONTH_KEY}T12:00:00`).toLocaleDateString("en-US", { month: "long" });
+const previousMonthDate = new Date(APP_NOW.year, APP_NOW.month - 1, 1);
+const previousPreviousMonthDate = new Date(APP_NOW.year, APP_NOW.month - 2, 1);
+const monthYearLabel = (date) => date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 const dateLabel = (key, options = { month: "long", day: "numeric", year: "numeric" }) => new Date(`${key}T12:00:00`).toLocaleDateString("en-US", options);
 const defaultEvents = [
-  { date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment due", detail: "₱6,000 · November rent", color: "payment" },
-  { date: GRACE_START_KEY, type: "grace", title: "Extended payment available", detail: "Grace period starts · ₱6,000", color: "grace" },
-  { date: "2026-11-03", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
-  { date: "2026-11-04", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
-  { date: "2026-11-05", type: "grace", title: "Extended payment available", detail: "Grace period · ₱6,000", color: "grace" },
-  { date: GRACE_END_KEY, type: "grace", title: "Last day for extended payment", detail: "Late fee may apply after today", color: "grace" },
+  { date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment due", detail: `${RENT_AMOUNT} · ${currentMonthLabel} rent`, color: "payment" },
+  ...[2, 3, 4, 5, 6].map((day) => ({ date: dateKey(APP_NOW.year, APP_NOW.month, day), type: "grace", title: day === 6 ? "Last day for extended payment" : "Extended payment available", detail: day === 6 ? "Late fee may apply after today" : `${day === 2 ? "Grace period starts · " : "Grace period · "}${RENT_AMOUNT}`, color: "grace" })),
 ];
-const defaultActivities = [
-  { icon: "✓", color: "blue", title: "Rent payment received", detail: "October 01, 2026 · ₱6,000", status: "Completed", statusClass: "" },
-];
-const defaultState = { events: defaultEvents, activities: defaultActivities, payments: [
-  { title: "October rent", detail: "Paid October 01, 2026", amount: "₱6,000" },
-  { title: "September rent", detail: "Paid September 01, 2026", amount: "₱6,000" },
-], currentPaymentPaid: false };
+const defaultState = { events: defaultEvents, activities: [], payments: [
+  { title: `${monthYearLabel(previousMonthDate).split(" ")[0]} rent`, detail: `Paid ${dateLabel(dateKey(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), 1))}`, amount: RENT_AMOUNT },
+  { title: `${monthYearLabel(previousPreviousMonthDate).split(" ")[0]} rent`, detail: `Paid ${dateLabel(dateKey(previousPreviousMonthDate.getFullYear(), previousPreviousMonthDate.getMonth(), 1))}`, amount: RENT_AMOUNT },
+], currentPaymentPaid: false, paymentCycle: CURRENT_MONTH_KEY, activityResetVersion };
 defaultState.pendingPayment = null;
 
 const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -43,22 +59,27 @@ state.activities.forEach((activity) => { activity.detail = migrateRentAmount(act
 state.payments.forEach((payment) => { payment.amount = migrateRentAmount(payment.amount); });
 state.events = state.events.filter((event) => event.id || !["Maintenance visit", "Basement booking"].includes(event.title));
 state.activities = state.activities.filter((activity) => activity.id || !["Leaking faucet reported", "Basement reservation requested"].includes(activity.title));
-state.events.forEach((event) => {
-  if (!event.id && event.type === "payment" && event.title === "Rent payment due") event.date = PAYMENT_DUE_KEY;
-  if (!event.id && event.type === "grace") event.date = event.date.replace(/^2024-11-/, "2026-11-");
-});
-state.activities.forEach((activity) => { if (!activity.id) activity.detail = activity.detail.replace(/2024/g, "2026"); });
-state.payments.forEach((payment) => { if (!payment.id) payment.detail = payment.detail.replace(/2024/g, "2026"); });
+state.events = state.events.filter((event) => event.id || !["payment", "grace"].includes(event.type));
+state.events = state.events.filter((event) => !event.date || event.date >= CURRENT_MONTH_KEY);
+if (state.activityResetVersion !== activityResetVersion) {
+  state.activities = [];
+  state.activityResetVersion = activityResetVersion;
+}
+if (state.paymentCycle !== CURRENT_MONTH_KEY) {
+  state.currentPaymentPaid = false;
+  state.pendingPayment = null;
+  state.paymentCycle = CURRENT_MONTH_KEY;
+}
+state.events.push(...defaultEvents.filter((event) => !state.events.some((savedEvent) => savedEvent.date === event.date && savedEvent.type === event.type)));
 if (!Object.prototype.hasOwnProperty.call(state, "pendingPayment")) state.pendingPayment = null;
 saveState();
-let calendarDate = new Date(APP_NOW.getFullYear(), APP_NOW.getMonth(), 1);
+let calendarDate = new Date(APP_NOW.year, APP_NOW.month, 1);
 let selectedDate = CURRENT_DATE_KEY;
 let pendingMaintenance = null;
 
 const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
 }[character]));
-const dateKey = (year, month, day) => `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 const formatLongDate = (key) => new Date(`${key}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 const formatShortDate = (key) => new Date(`${key}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
@@ -82,7 +103,7 @@ function renderDashboard() {
   const paymentProgress = document.querySelector("#dashboard-payment-progress");
   paymentAmount.textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
   paymentBadge.textContent = state.currentPaymentPaid ? "Paid" : state.pendingPayment ? "Awaiting approval" : "Extended payment ended";
-  paymentLabel.textContent = state.currentPaymentPaid ? "November rent paid" : state.pendingPayment ? "Payment submitted" : "Rent for November";
+  paymentLabel.textContent = state.currentPaymentPaid ? `${currentMonthLabel} rent paid` : state.pendingPayment ? "Payment submitted" : `Rent for ${currentMonthLabel}`;
   paymentProgress.style.width = state.currentPaymentPaid ? "100%" : state.pendingPayment ? "90%" : "75%";
 
   const upcoming = [...state.events].filter((event) => ["maintenance", "booking", "payment", "grace"].includes(event.type)).slice(-4);
@@ -125,28 +146,34 @@ function renderSelectedDay() {
 }
 
 function renderPayments() {
+  const dueLabel = `${currentMonthLabel} rent`;
+  const dueDateLabel = dateLabel(PAYMENT_DUE_KEY, { month: "long", day: "numeric", year: "numeric" });
   document.querySelector("#payment-page-amount").textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
   document.querySelector("#payment-page-status").textContent = state.currentPaymentPaid
-    ? "November rent · Approved November 01, 2026"
+    ? `${dueLabel} · Approved ${dueDateLabel}`
     : state.pendingPayment
-      ? "November rent · Waiting for landlord approval"
-      : "November rent · Due November 1, 2026";
+      ? `${dueLabel} · Waiting for landlord approval`
+      : `${dueLabel} · Due ${dueDateLabel}`;
   const payButton = document.querySelector("#pay-now");
   payButton.textContent = state.currentPaymentPaid ? "Rent payment approved" : state.pendingPayment ? "Payment submitted for review" : "Submit payment for verification";
   payButton.disabled = state.currentPaymentPaid || Boolean(state.pendingPayment);
   document.querySelector("#owner-payment-review").classList.toggle("hidden", !state.pendingPayment);
   const pendingMarkup = state.pendingPayment
-    ? `<div class="activity-item"><span class="activity-icon peach">₱</span><div><b>November rent payment</b><small>Submitted ${escapeHTML(state.pendingPayment.detail)}</small></div><span class="activity-status pending">Owner review</span></div>`
+    ? `<div class="activity-item"><span class="activity-icon peach">₱</span><div><b>${escapeHTML(currentMonthLabel)} rent payment</b><small>Submitted ${escapeHTML(state.pendingPayment.detail)}</small></div><span class="activity-status pending">Owner review</span></div>`
     : "";
   document.querySelector("#payment-history").innerHTML = pendingMarkup + state.payments.map((payment) => `<div class="activity-item"><span class="activity-icon blue">✓</span><div><b>${escapeHTML(payment.title)}</b><small>${escapeHTML(payment.detail)}</small></div><strong>${escapeHTML(payment.amount)}</strong></div>`).join("");
 }
 
 function renderActivity() {
-  document.querySelector("#activity-history").innerHTML = state.activities.map(activityMarkup).join("");
+  document.querySelector("#activity-history").innerHTML = state.activities.length
+    ? state.activities.map(activityMarkup).join("")
+    : '<p class="muted empty-events">No activity history yet.</p>';
 }
 
 function renderNotifications() {
-  document.querySelector("#notification-list").innerHTML = state.activities.slice(0, 5).map((activity, index) => `<div class="notification-item ${index < 2 ? "unread" : ""}"><span class="activity-icon ${escapeHTML(activity.color)}">${escapeHTML(activity.icon)}</span><div><b>${escapeHTML(activity.title)}</b><small>${escapeHTML(activity.detail)}</small></div><i></i></div>`).join("");
+  document.querySelector("#notification-list").innerHTML = state.activities.length
+    ? state.activities.slice(0, 5).map((activity, index) => `<div class="notification-item ${index < 2 ? "unread" : ""}"><span class="activity-icon ${escapeHTML(activity.color)}">${escapeHTML(activity.icon)}</span><div><b>${escapeHTML(activity.title)}</b><small>${escapeHTML(activity.detail)}</small></div><i></i></div>`).join("")
+    : '<p class="muted empty-events">No new notifications.</p>';
 }
 
 document.querySelector("#login-form").addEventListener("submit", (event) => { event.preventDefault(); showScreen("dashboard"); });
@@ -198,7 +225,7 @@ function cancelActivity(id, type) {
 }
 
 function submitPaymentForApproval() {
-  state.pendingPayment = { id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`, detail: "November 01, 2026 · ₱6,000" };
+  state.pendingPayment = { id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`, detail: `${dateLabel(PAYMENT_DUE_KEY)} · ${RENT_AMOUNT}` };
   state.activities.unshift({ id: state.pendingPayment.id, type: "payment", icon: "₱", color: "peach", title: "Rent payment submitted", detail: state.pendingPayment.detail, status: "Owner review", statusClass: "pending" });
   saveState();
   renderPayments();
@@ -211,10 +238,11 @@ function approvePayment() {
   const paymentId = state.pendingPayment.id;
   state.currentPaymentPaid = true;
   state.pendingPayment = null;
-  state.payments.unshift({ title: "November rent", detail: "Approved November 01, 2026", amount: RENT_AMOUNT });
+  state.payments.unshift({ title: `${currentMonthLabel} rent`, detail: `Approved ${dateLabel(PAYMENT_DUE_KEY)}`, amount: RENT_AMOUNT });
   state.activities = state.activities.filter((activity) => activity.id !== paymentId);
-  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment approved", detail: `November 01, 2026 · ${RENT_AMOUNT}`, status: "Completed", statusClass: "" });
-  state.events.unshift({ date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment approved", detail: `${RENT_AMOUNT} · November rent`, color: "payment" });
+  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment approved", detail: `${dateLabel(PAYMENT_DUE_KEY)} · ${RENT_AMOUNT}`, status: "Completed", statusClass: "" });
+  state.events = state.events.filter((event) => !(event.type === "payment" && event.date === PAYMENT_DUE_KEY));
+  state.events.unshift({ date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment approved", detail: `${RENT_AMOUNT} · ${currentMonthLabel} rent`, color: "payment" });
   saveState();
   renderPayments();
   renderDashboard();
@@ -288,12 +316,13 @@ renderCalendar();
 renderPayments();
 renderActivity();
 renderNotifications();
-document.querySelector("#dashboard-date").textContent = APP_NOW.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).toUpperCase();
-document.querySelector("#lease-end-date").textContent = "Dec 31, 2026";
+const appDate = new Date(`${CURRENT_DATE_KEY}T12:00:00`);
+document.querySelector("#dashboard-date").textContent = appDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }).toUpperCase();
+document.querySelector("#lease-end-date").textContent = `Dec 31, ${APP_NOW.year}`;
 document.querySelector("#calendar-month").textContent = dateLabel(CURRENT_MONTH_KEY, { month: "long", year: "numeric" });
 document.querySelector("#selected-date").textContent = formatLongDate(CURRENT_DATE_KEY);
-document.querySelector("#payment-page-status").textContent = "November rent · Due November 1, 2026";
-document.querySelector("#payment-on-time-date").textContent = "Nov 1";
-document.querySelector("#payment-extended-dates").textContent = "Nov 2 – 6";
+document.querySelector("#payment-page-status").textContent = `${currentMonthLabel} rent · Due ${dateLabel(PAYMENT_DUE_KEY)}`;
+document.querySelector("#payment-on-time-date").textContent = dateLabel(PAYMENT_DUE_KEY, { month: "short", day: "numeric" });
+document.querySelector("#payment-extended-dates").textContent = `${dateLabel(GRACE_START_KEY, { month: "short", day: "numeric" })} – ${dateLabel(GRACE_END_KEY, { month: "short", day: "numeric" })}`;
 document.querySelector("#maintenance-date").value = CURRENT_DATE_KEY;
-document.querySelector("#booking-date").value = "2026-11-14";
+document.querySelector("#booking-date").value = dateKey(APP_NOW.year, APP_NOW.month, APP_NOW.day + 7);
