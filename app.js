@@ -1,9 +1,12 @@
 const screens = [
   "login", "dashboard", "calendar", "payments", "notifications", "profile",
   "activity", "forgot", "contact", "calendar-help", "maintenance", "review",
-  "success", "booking", "booking-success",
+  "success", "booking", "booking-success", "owner-login", "owner-dashboard",
 ];
 const STORAGE_KEY = "tenanthub-demo-account";
+const ROLE_KEY = "tenanthub-demo-role";
+const OWNER_EMAIL = "owner@tenanthub.test";
+const OWNER_PASSWORD = "owner123";
 const RENT_AMOUNT = "₱6,000";
 const PHILIPPINE_TIME_ZONE = "Asia/Manila";
 const activityResetVersion = 2;
@@ -47,6 +50,7 @@ defaultState.pendingPayment = null;
 
 const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 let state;
+let currentRole = sessionStorage.getItem(ROLE_KEY) || "tenant";
 const cloneState = (value) => JSON.parse(JSON.stringify(value));
 try {
   state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || cloneState(defaultState);
@@ -112,8 +116,31 @@ const showScreen = (name) => {
   if (target === "payments") renderPayments();
   if (target === "activity") renderActivity();
   if (target === "notifications") renderNotifications();
+  if (target === "owner-dashboard") renderOwnerDashboard();
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
+
+const pendingOwnerItems = () => ({
+  maintenance: state.activities.filter((activity) => activity.type === "maintenance" && activity.status === "In review"),
+  booking: state.activities.filter((activity) => activity.type === "booking" && activity.status === "Pending"),
+  payment: state.pendingPayment ? [state.pendingPayment] : [],
+});
+
+function renderOwnerDashboard() {
+  const pending = pendingOwnerItems();
+  document.querySelector("#owner-pending-count").textContent = pending.maintenance.length + pending.booking.length + pending.payment.length;
+  document.querySelector("#owner-maintenance-list").innerHTML = pending.maintenance.length
+    ? pending.maintenance.map(ownerRequestMarkup).join("")
+    : '<p class="muted empty-events">No maintenance requests awaiting approval.</p>';
+  document.querySelector("#owner-booking-list").innerHTML = pending.booking.length
+    ? pending.booking.map(ownerRequestMarkup).join("")
+    : '<p class="muted empty-events">No basement bookings awaiting approval.</p>';
+  document.querySelector("#owner-payment-list").innerHTML = pending.payment.length
+    ? `<div class="owner-request"><div><b>${currentMonthLabel} rent payment</b><small>Submitted ${escapeHTML(pending.payment[0].detail)}</small></div><div class="owner-actions"><button class="button button-primary" data-owner-action="approve-payment">Approve</button><button class="button button-danger" data-owner-action="decline-payment">Decline</button></div></div>`
+    : '<p class="muted empty-events">No rent payments awaiting confirmation.</p>';
+}
+
+const ownerRequestMarkup = (item) => `<div class="owner-request"><div><b>${escapeHTML(item.title)}</b><small>${escapeHTML(item.detail)}</small></div><div class="owner-actions"><button class="button button-primary" data-owner-action="approve" data-id="${escapeHTML(item.id)}" data-type="${escapeHTML(item.type)}">Approve</button><button class="button button-danger" data-owner-action="decline" data-id="${escapeHTML(item.id)}" data-type="${escapeHTML(item.type)}">Decline</button></div></div>`;
 
 const activityMarkup = (activity) => `<div class="activity-item"><span class="activity-icon ${escapeHTML(activity.color)}">${escapeHTML(activity.icon)}</span><div><b>${escapeHTML(activity.title)}</b><small>${escapeHTML(activity.detail)}</small></div><span class="activity-status ${escapeHTML(activity.statusClass || "")}">${escapeHTML(activity.status)}</span>${activity.cancelable ? `<button class="cancel-link" data-action="cancel-item" data-id="${escapeHTML(activity.id)}" data-type="${escapeHTML(activity.type)}">Cancel</button>` : ""}</div>`;
 
@@ -233,6 +260,21 @@ document.addEventListener("click", (event) => {
     document.querySelectorAll(".notification-item.unread").forEach((item) => item.classList.remove("unread"));
     return;
   }
+  const ownerAction = event.target.closest("[data-owner-action]");
+  if (ownerAction) {
+    const action = ownerAction.dataset.ownerAction;
+    if (action === "approve-payment") approvePayment();
+    else if (action === "decline-payment") declinePayment();
+    else decideOwnerRequest(ownerAction.dataset.id, ownerAction.dataset.type, action === "approve");
+    renderOwnerDashboard();
+    return;
+  }
+  if (event.target.closest("[data-action='owner-logout']")) {
+    currentRole = "tenant";
+    sessionStorage.removeItem(ROLE_KEY);
+    showScreen("login");
+    return;
+  }
   const cancelButton = event.target.closest("[data-action^='cancel']");
   if (cancelButton) {
     const type = cancelButton.dataset.type || cancelButton.dataset.action.replace("cancel-", "");
@@ -240,6 +282,24 @@ document.addEventListener("click", (event) => {
     if (id) cancelActivity(id, type);
   }
 });
+
+function decideOwnerRequest(id, type, approved) {
+  const activity = state.activities.find((item) => item.id === id && item.type === type);
+  if (!activity) return;
+  activity.status = approved ? (type === "booking" ? "Approved" : "Scheduled") : "Declined";
+  activity.statusClass = approved ? "" : "pending";
+  activity.cancelable = false;
+  const event = state.events.find((item) => item.id === id);
+  if (event) {
+    if (approved) event.title = type === "booking" ? "Basement booking approved" : "Maintenance visit approved";
+    else state.events = state.events.filter((item) => item.id !== id);
+  }
+  saveState();
+  renderDashboard();
+  renderCalendar();
+  renderActivity();
+  renderNotifications();
+}
 
 function cancelActivity(id, type) {
   const label = type === "maintenance" ? "maintenance report" : "basement booking";
@@ -336,6 +396,17 @@ document.querySelector("#booking-form").addEventListener("submit", (event) => {
 document.querySelector("#pay-now").addEventListener("click", submitPaymentForApproval);
 document.querySelector("#approve-payment").addEventListener("click", approvePayment);
 document.querySelector("#decline-payment").addEventListener("click", declinePayment);
+document.querySelector("#owner-login-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  if (form.get("email") !== OWNER_EMAIL || form.get("password") !== OWNER_PASSWORD) {
+    window.alert(`Use the demo owner account: ${OWNER_EMAIL} / ${OWNER_PASSWORD}`);
+    return;
+  }
+  currentRole = "owner";
+  sessionStorage.setItem(ROLE_KEY, currentRole);
+  showScreen("owner-dashboard");
+});
 
 renderDashboard();
 renderCalendar();
@@ -352,3 +423,4 @@ document.querySelector("#payment-on-time-date").textContent = dateLabel(PAYMENT_
 document.querySelector("#payment-extended-dates").textContent = `${dateLabel(GRACE_START_KEY, { month: "short", day: "numeric" })} – ${dateLabel(GRACE_END_KEY, { month: "short", day: "numeric" })}`;
 document.querySelector("#maintenance-date").value = CURRENT_DATE_KEY;
 document.querySelector("#booking-date").value = dateKey(APP_NOW.year, APP_NOW.month, APP_NOW.day + 7);
+showScreen(currentRole === "owner" ? "owner-dashboard" : "login");

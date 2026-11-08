@@ -33,6 +33,7 @@
             <button class="button button-primary button-wide" type="submit">Sign in <span>→</span></button>
           </form>
           <p class="form-footnote">Need help? <button type="button" class="text-link link-button" data-route="contact">Contact your property manager</button></p>
+          <p class="form-footnote">Property owner? <button type="button" class="text-link link-button" data-route="owner-login">Owner sign in</button></p>
         </div>
       </section>
 
@@ -94,6 +95,31 @@
       <section id="activity-screen" class="screen app-screen hidden">
         <header class="simple-header"><button class="back-button" data-route="dashboard">←</button><div><p class="eyebrow">HISTORY</p><h2>Recent activity</h2></div></header>
         <main class="flow-content"><div id="activity-history" class="history-list card-surface"></div></main>
+      </section>
+
+      <section id="owner-login-screen" class="screen centered-screen hidden">
+        <div class="success-orbit booking-orbit"><div class="success-check">O</div></div>
+        <p class="eyebrow">OWNER ACCESS</p>
+        <h1>Manage tenant requests.</h1>
+        <p class="muted">Demo owner account: <b>owner@tenanthub.test</b> / <b>owner123</b></p>
+        <form id="owner-login-form" class="stack-form owner-login-form">
+          <label>Email address<input name="email" type="email" value="owner@tenanthub.test" required /></label>
+          <label>Password<input name="password" type="password" value="owner123" required /></label>
+          <button class="button button-primary button-wide" type="submit">Sign in as owner</button>
+          <button class="button button-ghost button-wide" type="button" data-route="login">Back to tenant sign in</button>
+        </form>
+      </section>
+
+      <section id="owner-dashboard-screen" class="screen app-screen hidden">
+        <header class="topbar"><div class="brand"><span class="brand-mark">T</span><span>TenantHub Owner</span></div><button class="button button-ghost" data-action="owner-logout">Sign out</button></header>
+        <main class="dashboard-content">
+          <div class="welcome-row"><div><p class="eyebrow">OWNER CONTROL CENTER</p><h2>Review tenant activity</h2><p class="muted">Approve maintenance, bookings, and rent payments from one place.</p></div><span id="owner-pending-count" class="due-badge">0</span></div>
+          <div class="dashboard-grid">
+            <article class="card-surface owner-panel"><div class="card-heading"><div><p class="card-kicker">MAINTENANCE</p><h3>Pending requests</h3></div></div><div id="owner-maintenance-list"></div></article>
+            <article class="card-surface owner-panel"><div class="card-heading"><div><p class="card-kicker">BASEMENT</p><h3>Booking requests</h3></div></div><div id="owner-booking-list"></div></article>
+            <article class="card-surface owner-panel owner-panel-wide"><div class="card-heading"><div><p class="card-kicker">RENT VERIFICATION</p><h3>Payment confirmations</h3></div></div><div id="owner-payment-list"></div></article>
+          </div>
+        </main>
       </section>
 
       <section id="forgot-screen" class="screen centered-screen hidden"><div class="success-orbit"><div class="success-check">✉</div></div><p class="eyebrow">PASSWORD HELP</p><h1>Check your inbox.</h1><p class="muted">A password reset link would be sent to <b>tenant@example.com</b> in a connected production system.</p><button class="button button-primary button-wide" data-route="login">Back to sign in</button></section>
