@@ -4,7 +4,7 @@ const screens = [
   "success", "booking", "booking-success", "register", "owner-login", "owner-dashboard",
 ];
 const STORAGE_KEY = "tenanthub-demo-account";
-const ACCOUNT_KEY = "tenanthub-local-account";
+const ACCOUNTS_KEY = "tenanthub-local-accounts";
 const SESSION_KEY = "tenanthub-session-user";
 const ROLE_KEY = "tenanthub-demo-role";
 const OWNER_EMAIL = "owner@tenanthub.test";
@@ -52,12 +52,45 @@ const defaultState = { events: defaultEvents, activities: [], payments: [
 defaultState.pendingPayment = null;
 
 let currentUser = null;
+const readAccounts = () => {
+  try {
+    const accounts = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "[]");
+    return Array.isArray(accounts) ? accounts : [];
+  } catch {
+    return [];
+  }
+};
+const writeAccounts = (accounts) => localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+const accountState = (account) => account?.state ? cloneState(account.state) : cloneState(defaultState);
+const findAccount = (email) => readAccounts().find((account) => account.user.email === email);
+const saveAccount = (user, accountStateValue) => {
+  const accounts = readAccounts().filter((account) => account.user.email !== user.email);
+  accounts.push({ user, state: cloneState(accountStateValue) });
+  writeAccounts(accounts);
+};
 const saveState = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (currentUser?.role === "tenant") saveAccount(currentUser, state);
 };
 let state;
 let currentRole = sessionStorage.getItem(ROLE_KEY) || "tenant";
 const cloneState = (value) => JSON.parse(JSON.stringify(value));
+const migrateLegacyAccount = () => {
+  if (readAccounts().length) return;
+  const legacyUser = JSON.parse(localStorage.getItem("tenanthub-local-account") || "null");
+  if (legacyUser?.email) {
+    let legacyState;
+    try {
+      legacyState = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+    } catch {
+      legacyState = null;
+    }
+    saveAccount(legacyUser, legacyState || defaultState);
+  } else {
+    saveAccount(DEFAULT_TENANT, defaultState);
+  }
+};
+migrateLegacyAccount();
 try {
   state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || cloneState(defaultState);
 } catch {
@@ -75,9 +108,11 @@ if (state.activityResetVersion !== activityResetVersion) {
   state.activities = [];
   state.activityResetVersion = activityResetVersion;
 }
-state.currentPaymentPaid = false;
-state.pendingPayment = null;
-state.paymentCycle = CURRENT_MONTH_KEY;
+if (state.paymentCycle !== CURRENT_MONTH_KEY) {
+  state.currentPaymentPaid = false;
+  state.pendingPayment = null;
+  state.paymentCycle = CURRENT_MONTH_KEY;
+}
 state.events.push(...defaultEvents.filter((event) => !state.events.some((savedEvent) => savedEvent.date === event.date && savedEvent.type === event.type)));
 if (!Object.prototype.hasOwnProperty.call(state, "pendingPayment")) state.pendingPayment = null;
 saveState();
@@ -124,11 +159,16 @@ const showScreen = (name) => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
-const pendingOwnerItems = () => ({
-  maintenance: state.activities.filter((activity) => activity.type === "maintenance" && activity.status === "In review"),
-  booking: state.activities.filter((activity) => activity.type === "booking" && activity.status === "Pending"),
-  payment: state.pendingPayment ? [state.pendingPayment] : [],
-});
+const pendingOwnerItems = () => readAccounts().reduce((pending, account) => {
+  const tenantState = accountState(account);
+  const tenantItems = (tenantState.activities || [])
+    .filter((activity) => (activity.type === "maintenance" && activity.status === "In review") || (activity.type === "booking" && activity.status === "Pending"))
+    .map((item) => ({ ...item, tenantId: account.user.email, tenantName: account.user.name }));
+  pending.maintenance.push(...tenantItems.filter((item) => item.type === "maintenance"));
+  pending.booking.push(...tenantItems.filter((item) => item.type === "booking"));
+  if (tenantState.pendingPayment) pending.payment.push({ ...tenantState.pendingPayment, tenantId: account.user.email, tenantName: account.user.name });
+  return pending;
+}, { maintenance: [], booking: [], payment: [] });
 
 function renderOwnerDashboard() {
   const pending = pendingOwnerItems();
@@ -235,16 +275,30 @@ function renderNotifications() {
 const applyAuthenticatedUser = (user, remember = true) => {
   currentUser = user;
   currentRole = currentUser.role;
+  if (currentRole === "tenant") {
+    const account = findAccount(currentUser.email);
+    state = accountState(account);
+    saveAccount(currentUser, state);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
-  if (remember) localStorage.setItem(ACCOUNT_KEY, JSON.stringify(currentUser));
+  if (!remember) sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
   sessionStorage.setItem(ROLE_KEY, currentRole);
   document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = currentUser.name; });
   showScreen(currentRole === "owner" ? "owner-dashboard" : "dashboard");
 };
+const loadTenantAccount = (email) => {
+  const account = findAccount(email);
+  if (!account) return false;
+  currentUser = account.user;
+  currentRole = "tenant";
+  state = accountState(account);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  return true;
+};
 const findSavedUser = (email) => {
   const normalizedEmail = String(email).trim().toLowerCase();
-  const savedUser = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || JSON.stringify(DEFAULT_TENANT));
-  return savedUser?.email === normalizedEmail ? savedUser : null;
+  return findAccount(normalizedEmail)?.user || (normalizedEmail === DEFAULT_TENANT.email ? DEFAULT_TENANT : null);
 };
 document.querySelector("#login-form").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -262,7 +316,11 @@ document.querySelector("#register-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   const user = { name: String(form.get("name")).trim(), email: String(form.get("email")).trim().toLowerCase(), password: String(form.get("password")), role: "tenant" };
-  localStorage.setItem(ACCOUNT_KEY, JSON.stringify(user));
+  if (findAccount(user.email)) {
+    window.alert("An account with that email already exists.");
+    return;
+  }
+  saveAccount(user, defaultState);
   applyAuthenticatedUser(user);
 });
 document.querySelector(".toggle-password").addEventListener("click", (event) => {
@@ -304,6 +362,7 @@ document.addEventListener("click", (event) => {
   if (ownerAction) {
     const action = ownerAction.dataset.ownerAction;
     const approved = action === "approve" || action === "approve-payment";
+    if (!loadTenantAccount(ownerAction.dataset.tenantId)) return;
     if (action === "approve-payment") approvePayment();
     else if (action === "decline-payment") declinePayment();
     else decideOwnerRequest(ownerAction.dataset.id, ownerAction.dataset.type, approved);
@@ -464,13 +523,13 @@ document.querySelector("#payment-extended-dates").textContent = `${dateLabel(GRA
 document.querySelector("#maintenance-date").value = CURRENT_DATE_KEY;
 document.querySelector("#booking-date").value = dateKey(APP_NOW.year, APP_NOW.month, APP_NOW.day + 7);
 const savedSession = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
-const savedAccount = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "null");
-const savedUser = savedSession || savedAccount;
-if (savedUser) {
-  currentUser = savedUser;
-  currentRole = savedUser.role;
-  document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = savedUser.name; });
-  showScreen(currentRole === "owner" ? "owner-dashboard" : "dashboard");
+if (savedSession?.role === "tenant" && loadTenantAccount(savedSession.email)) {
+  document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = currentUser.name; });
+  showScreen("dashboard");
+} else if (savedSession?.role === "owner") {
+  currentUser = savedSession;
+  currentRole = "owner";
+  showScreen("owner-dashboard");
 } else {
   showScreen("login");
 }

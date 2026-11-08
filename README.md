@@ -10,9 +10,9 @@ The prototype also includes a separate owner role. Choose **Owner sign in** on t
 
 ## Local sign-in
 
-No database or backend is required. Tenant accounts created through **Create one** and all demo activity are saved in the browser's `localStorage`. The default tenant account is `tenant@example.com` / `password`.
+No database or backend is required. Multiple tenant accounts created through **Create one** are saved in the browser's `localStorage`, and each account has separate maintenance requests, bookings, payments, notifications, and calendar activity. The default tenant account is `tenant@example.com` / `password`.
 
-The owner credentials are `owner@tenanthub.test` / `owner123`. Owner approvals use the same browser storage, so this is intended for a local prototype rather than production authentication.
+The owner credentials are `owner@tenanthub.test` / `owner123`. Owner approvals combine pending requests from all locally saved tenant accounts and update the selected tenant's browser state. This is intended for local testing and prototyping rather than production authentication.
 
 ## Run locally
 
