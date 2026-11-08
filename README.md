@@ -6,7 +6,7 @@ The demo now persists account activity in the browser with `localStorage`: submi
 
 Rent payments use a two-step demo workflow: the tenant submits the payment for verification, then the landlord review controls on the Payments screen approve or decline it. Pending maintenance reports and basement bookings remain manageable from the dashboard activity history.
 
-The prototype also includes a separate owner role. Choose **Owner sign in** on the login screen and use `owner@tenanthub.test` / `owner123`. The owner control center lists pending maintenance reports, basement bookings, and rent submissions, with approve/decline actions that update the shared browser state visible to the tenant.
+The prototype also includes a separate owner role. Choose **Owner sign in** on the login screen and use `owner@tenanthub.test` / `owner123`. The owner control center lists pending maintenance reports, basement bookings, and rent submissions, with approve/decline actions that update the shared browser state visible to the tenant. Tenants can only submit a payment-verification request; they cannot approve or decline their own payment.
 
 ## Run locally
 

@@ -210,7 +210,6 @@ function renderPayments() {
   const payButton = document.querySelector("#pay-now");
   payButton.textContent = state.currentPaymentPaid ? "Rent payment approved" : state.pendingPayment ? "Payment submitted for review" : "Submit payment for verification";
   payButton.disabled = state.currentPaymentPaid || Boolean(state.pendingPayment);
-  document.querySelector("#owner-payment-review").classList.toggle("hidden", !state.pendingPayment);
   const pendingMarkup = state.pendingPayment
     ? `<div class="activity-item"><span class="activity-icon peach">₱</span><div><b>${escapeHTML(currentMonthLabel)} rent payment</b><small>Submitted ${escapeHTML(state.pendingPayment.detail)}</small></div><span class="activity-status pending">Owner review</span></div>`
     : "";
@@ -394,8 +393,6 @@ document.querySelector("#booking-form").addEventListener("submit", (event) => {
 });
 
 document.querySelector("#pay-now").addEventListener("click", submitPaymentForApproval);
-document.querySelector("#approve-payment").addEventListener("click", approvePayment);
-document.querySelector("#decline-payment").addEventListener("click", declinePayment);
 document.querySelector("#owner-login-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
