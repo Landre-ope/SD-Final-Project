@@ -9,7 +9,13 @@ const SESSION_KEY = "tenanthub-session-user";
 const ROLE_KEY = "tenanthub-demo-role";
 const OWNER_EMAIL = "owner@tenanthub.test";
 const OWNER_PASSWORD = "owner123";
-const DEFAULT_TENANT = { name: "Landre Crisostomo", email: "tenant@example.com", password: "password", role: "tenant" };
+const UNIT_PROFILES = {
+  "301": { label: "Unit 301", address: "Tiaong<br>Guiguinto, Bulacan 3015", rent: "₱5,500", leaseEnd: "Dec 31, 2026" },
+  "302": { label: "Unit 302", address: "Tiaong<br>Guiguinto, Bulacan 3015", rent: "₱6,000", leaseEnd: "Dec 31, 2026" },
+  "303": { label: "Unit 303", address: "Tiaong<br>Guiguinto, Bulacan 3015", rent: "₱6,500", leaseEnd: "Dec 31, 2026" },
+  "401": { label: "Unit 401", address: "Tiaong<br>Guiguinto, Bulacan 3015", rent: "₱7,000", leaseEnd: "Dec 31, 2026" },
+};
+const DEFAULT_TENANT = { name: "Landre Crisostomo", email: "tenant@example.com", password: "password", role: "tenant", unitId: "302" };
 const RENT_AMOUNT = "₱6,000";
 const PHILIPPINE_TIME_ZONE = "Asia/Manila";
 const activityResetVersion = 3;
@@ -62,6 +68,7 @@ const readAccounts = () => {
 };
 const writeAccounts = (accounts) => localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
 const accountState = (account) => account?.state ? cloneState(account.state) : cloneState(defaultState);
+const normalizeUser = (user) => user ? ({ ...user, unitId: user.unitId && UNIT_PROFILES[user.unitId] ? user.unitId : "302" }) : null;
 const findAccount = (email) => readAccounts().find((account) => account.user.email === email);
 const saveAccount = (user, accountStateValue) => {
   const accounts = readAccounts().filter((account) => account.user.email !== user.email);
@@ -71,6 +78,30 @@ const saveAccount = (user, accountStateValue) => {
 const saveState = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   if (currentUser?.role === "tenant") saveAccount(currentUser, state);
+};
+const unitProfile = () => UNIT_PROFILES[currentUser?.unitId] || UNIT_PROFILES["302"];
+const currentRent = () => unitProfile().rent;
+const initials = (name) => String(name || "Tenant").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+const renderUserDetails = () => {
+  if (!currentUser || currentUser.role !== "tenant") return;
+  const profile = unitProfile();
+  const details = {
+    "#dashboard-user-name": currentUser.name.split(/\s+/)[0],
+    "#dashboard-avatar": initials(currentUser.name),
+    ".desktop-avatar": initials(currentUser.name),
+    "#home-unit": profile.label,
+    "#home-address": profile.address,
+    "#lease-end-date": profile.leaseEnd,
+    "#monthly-rent": profile.rent,
+    "#profile-avatar": initials(currentUser.name),
+    "#profile-name": currentUser.name,
+    "#profile-email": currentUser.email,
+    "#profile-unit": profile.label,
+    "#review-unit": profile.label,
+  };
+  Object.entries(details).forEach(([selector, value]) => {
+    document.querySelectorAll(selector).forEach((element) => { element.innerHTML = value; });
+  });
 };
 let state;
 let currentRole = sessionStorage.getItem(ROLE_KEY) || "tenant";
@@ -85,7 +116,7 @@ const migrateLegacyAccount = () => {
     } catch {
       legacyState = null;
     }
-    saveAccount(legacyUser, legacyState || defaultState);
+    saveAccount(normalizeUser(legacyUser), legacyState || defaultState);
   } else {
     saveAccount(DEFAULT_TENANT, defaultState);
   }
@@ -193,7 +224,7 @@ function renderDashboard() {
   const paymentBadge = document.querySelector("#dashboard-payment-badge");
   const paymentLabel = document.querySelector("#dashboard-payment-label");
   const paymentProgress = document.querySelector("#dashboard-payment-progress");
-  paymentAmount.textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
+  paymentAmount.textContent = state.currentPaymentPaid ? "₱0" : currentRent();
   paymentBadge.textContent = state.currentPaymentPaid ? "Paid" : state.pendingPayment ? "Awaiting approval" : "Extended payment ended";
   paymentLabel.textContent = state.currentPaymentPaid ? `${currentMonthLabel} rent paid` : state.pendingPayment ? "Payment submitted" : `Rent for ${currentMonthLabel}`;
   paymentProgress.style.width = state.currentPaymentPaid ? "100%" : state.pendingPayment ? "90%" : "75%";
@@ -245,7 +276,7 @@ function renderSelectedDay() {
 function renderPayments() {
   const dueLabel = `${currentMonthLabel} rent`;
   const dueDateLabel = dateLabel(PAYMENT_DUE_KEY, { month: "long", day: "numeric", year: "numeric" });
-  document.querySelector("#payment-page-amount").textContent = state.currentPaymentPaid ? "₱0" : RENT_AMOUNT;
+  document.querySelector("#payment-page-amount").textContent = state.currentPaymentPaid ? "₱0" : currentRent();
   document.querySelector("#payment-page-status").textContent = state.currentPaymentPaid
     ? `${dueLabel} · Approved ${dueDateLabel}`
     : state.pendingPayment
@@ -257,7 +288,7 @@ function renderPayments() {
   const pendingMarkup = state.pendingPayment
     ? `<div class="activity-item"><span class="activity-icon peach">₱</span><div><b>${escapeHTML(currentMonthLabel)} rent payment</b><small>Submitted ${escapeHTML(state.pendingPayment.detail)}</small></div><span class="activity-status pending">Owner review</span></div>`
     : "";
-  document.querySelector("#payment-history").innerHTML = pendingMarkup + state.payments.map((payment) => `<div class="activity-item"><span class="activity-icon blue">✓</span><div><b>${escapeHTML(payment.title)}</b><small>${escapeHTML(payment.detail)}</small></div><strong>${escapeHTML(payment.amount)}</strong></div>`).join("");
+  document.querySelector("#payment-history").innerHTML = pendingMarkup + state.payments.map((payment) => `<div class="activity-item"><span class="activity-icon blue">✓</span><div><b>${escapeHTML(payment.title)}</b><small>${escapeHTML(payment.detail)}</small></div><strong>${escapeHTML(currentRent())}</strong></div>`).join("");
 }
 
 function renderActivity() {
@@ -273,7 +304,7 @@ function renderNotifications() {
 }
 
 const applyAuthenticatedUser = (user, remember = true) => {
-  currentUser = user;
+  currentUser = normalizeUser(user);
   currentRole = currentUser.role;
   if (currentRole === "tenant") {
     const account = findAccount(currentUser.email);
@@ -285,12 +316,13 @@ const applyAuthenticatedUser = (user, remember = true) => {
   if (!remember) sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
   sessionStorage.setItem(ROLE_KEY, currentRole);
   document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = currentUser.name; });
+  renderUserDetails();
   showScreen(currentRole === "owner" ? "owner-dashboard" : "dashboard");
 };
 const loadTenantAccount = (email) => {
   const account = findAccount(email);
   if (!account) return false;
-  currentUser = account.user;
+  currentUser = normalizeUser(account.user);
   currentRole = "tenant";
   state = accountState(account);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -298,7 +330,7 @@ const loadTenantAccount = (email) => {
 };
 const findSavedUser = (email) => {
   const normalizedEmail = String(email).trim().toLowerCase();
-  return findAccount(normalizedEmail)?.user || (normalizedEmail === DEFAULT_TENANT.email ? DEFAULT_TENANT : null);
+  return normalizeUser(findAccount(normalizedEmail)?.user || (normalizedEmail === DEFAULT_TENANT.email ? DEFAULT_TENANT : null));
 };
 document.querySelector("#login-form").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -315,7 +347,7 @@ document.querySelector("#login-form").addEventListener("submit", (event) => {
 document.querySelector("#register-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  const user = { name: String(form.get("name")).trim(), email: String(form.get("email")).trim().toLowerCase(), password: String(form.get("password")), role: "tenant" };
+  const user = { name: String(form.get("name")).trim(), email: String(form.get("email")).trim().toLowerCase(), password: String(form.get("password")), role: "tenant", unitId: String(form.get("unitId")) };
   if (findAccount(user.email)) {
     window.alert("An account with that email already exists.");
     return;
@@ -413,7 +445,7 @@ function cancelActivity(id, type) {
 }
 
 function submitPaymentForApproval() {
-  state.pendingPayment = { id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`, detail: `${dateLabel(PAYMENT_DUE_KEY)} · ${RENT_AMOUNT}` };
+  state.pendingPayment = { id: `PAY-${Math.floor(1000 + Math.random() * 9000)}`, detail: `${dateLabel(PAYMENT_DUE_KEY)} · ${currentRent()}` };
   state.activities.unshift({ id: state.pendingPayment.id, type: "payment", icon: "₱", color: "peach", title: "Rent payment submitted", detail: state.pendingPayment.detail, status: "Owner review", statusClass: "pending" });
   saveState();
   renderPayments();
@@ -426,11 +458,11 @@ function approvePayment() {
   const paymentId = state.pendingPayment.id;
   state.currentPaymentPaid = true;
   state.pendingPayment = null;
-  state.payments.unshift({ title: `${currentMonthLabel} rent`, detail: `Approved ${dateLabel(PAYMENT_DUE_KEY)}`, amount: RENT_AMOUNT });
+  state.payments.unshift({ title: `${currentMonthLabel} rent`, detail: `Approved ${dateLabel(PAYMENT_DUE_KEY)}`, amount: currentRent() });
   state.activities = state.activities.filter((activity) => activity.id !== paymentId);
-  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment approved", detail: `${dateLabel(PAYMENT_DUE_KEY)} · ${RENT_AMOUNT}`, status: "Completed", statusClass: "" });
+  state.activities.unshift({ icon: "✓", color: "blue", title: "Rent payment approved", detail: `${dateLabel(PAYMENT_DUE_KEY)} · ${currentRent()}`, status: "Completed", statusClass: "" });
   state.events = state.events.filter((event) => !(event.type === "payment" && event.date === PAYMENT_DUE_KEY));
-  state.events.unshift({ date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment approved", detail: `${RENT_AMOUNT} · ${currentMonthLabel} rent`, color: "payment" });
+  state.events.unshift({ date: PAYMENT_DUE_KEY, type: "payment", title: "Rent payment approved", detail: `${currentRent()} · ${currentMonthLabel} rent`, color: "payment" });
   saveState();
   renderPayments();
   renderDashboard();
@@ -465,7 +497,7 @@ document.querySelector("#submit-maintenance").addEventListener("click", () => {
   const requestId = `#MR-${Math.floor(1000 + Math.random() * 9000)}`;
   const title = `${pendingMaintenance.category} issue`;
   pendingMaintenance.id = requestId;
-  state.events.unshift({ id: requestId, date: pendingMaintenance.date, type: "maintenance", title: "Maintenance visit", detail: `${pendingMaintenance.time} · Unit 302`, color: "blue" });
+  state.events.unshift({ id: requestId, date: pendingMaintenance.date, type: "maintenance", title: "Maintenance visit", detail: `${pendingMaintenance.time} · ${unitProfile().label}`, color: "blue" });
   state.activities.unshift({ id: requestId, type: "maintenance", cancelable: true, icon: "⌁", color: "blue", title, detail: `${formatShortDate(pendingMaintenance.date)} · Request ${requestId}`, status: "In review", statusClass: "pending" });
   saveState();
   document.querySelector("#maintenance-request-id").textContent = requestId;
@@ -525,6 +557,7 @@ document.querySelector("#booking-date").value = dateKey(APP_NOW.year, APP_NOW.mo
 const savedSession = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
 if (savedSession?.role === "tenant" && loadTenantAccount(savedSession.email)) {
   document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = currentUser.name; });
+  renderUserDetails();
   showScreen("dashboard");
 } else if (savedSession?.role === "owner") {
   currentUser = savedSession;
