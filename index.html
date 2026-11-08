@@ -33,6 +33,7 @@
             <button class="button button-primary button-wide" type="submit">Sign in <span>→</span></button>
           </form>
           <p class="form-footnote">Need help? <button type="button" class="text-link link-button" data-route="contact">Contact your property manager</button></p>
+          <p class="form-footnote">No account? <button type="button" class="text-link link-button" data-route="register">Create one</button></p>
           <p class="form-footnote">Property owner? <button type="button" class="text-link link-button" data-route="owner-login">Owner sign in</button></p>
         </div>
       </section>
@@ -123,6 +124,7 @@
       </section>
 
       <section id="forgot-screen" class="screen centered-screen hidden"><div class="success-orbit"><div class="success-check">✉</div></div><p class="eyebrow">PASSWORD HELP</p><h1>Check your inbox.</h1><p class="muted">A password reset link would be sent to <b>tenant@example.com</b> in a connected production system.</p><button class="button button-primary button-wide" data-route="login">Back to sign in</button></section>
+      <section id="register-screen" class="screen centered-screen hidden"><div class="success-orbit booking-orbit"><div class="success-check">+</div></div><p class="eyebrow">CREATE ACCOUNT</p><h1>Welcome to TenantHub.</h1><p class="muted">Create a tenant account to save bookings, maintenance requests, and payment submissions.</p><form id="register-form" class="stack-form account-form"><label>Full name<input name="name" required /></label><label>Email address<input name="email" type="email" required /></label><label>Password<input name="password" type="password" minlength="6" required /></label><button class="button button-primary button-wide" type="submit">Create account</button><button class="button button-ghost button-wide" type="button" data-route="login">Back to sign in</button></form></section>
       <section id="contact-screen" class="screen centered-screen hidden"><div class="success-orbit booking-orbit"><div class="success-check">☏</div></div><p class="eyebrow">PROPERTY SUPPORT</p><h1>We're here to help.</h1><p class="muted">Contact your property manager at <b>manager@tenanthub.test</b> or call <b>+63 917 555 0142</b>.</p><button class="button button-primary button-wide" data-route="dashboard">Back to dashboard</button></section>
       <section id="calendar-help-screen" class="screen centered-screen hidden"><div class="success-orbit"><div class="success-check">i</div></div><p class="eyebrow">CALENDAR GUIDE</p><h1>Stay ahead of every date.</h1><p class="muted">Blue marks maintenance, peach marks basement bookings, blue-green marks payment deadlines, and orange marks the five-day extended payment window.</p><button class="button button-primary button-wide" data-route="calendar">Back to calendar</button></section>
 

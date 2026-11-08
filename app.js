@@ -1,12 +1,13 @@
 const screens = [
   "login", "dashboard", "calendar", "payments", "notifications", "profile",
   "activity", "forgot", "contact", "calendar-help", "maintenance", "review",
-  "success", "booking", "booking-success", "owner-login", "owner-dashboard",
+  "success", "booking", "booking-success", "register", "owner-login", "owner-dashboard",
 ];
 const STORAGE_KEY = "tenanthub-demo-account";
 const ROLE_KEY = "tenanthub-demo-role";
 const OWNER_EMAIL = "owner@tenanthub.test";
 const OWNER_PASSWORD = "owner123";
+const AUTH_TOKEN_KEY = "tenanthub-auth-token";
 const RENT_AMOUNT = "₱6,000";
 const PHILIPPINE_TIME_ZONE = "Asia/Manila";
 const activityResetVersion = 3;
@@ -48,7 +49,22 @@ const defaultState = { events: defaultEvents, activities: [], payments: [
 ], currentPaymentPaid: false, paymentCycle: CURRENT_MONTH_KEY, activityResetVersion };
 defaultState.pendingPayment = null;
 
-const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+let authToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
+let currentUser = null;
+const apiRequest = async (url, options = {}) => {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const response = await fetch(url, { ...options, headers });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(body?.error || "Request failed.");
+  return body;
+};
+const saveState = () => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (authToken && currentUser?.role === "tenant") {
+    apiRequest("/api/state", { method: "PUT", body: JSON.stringify(state) }).catch((error) => console.error("Could not save account state:", error));
+  }
+};
 let state;
 let currentRole = sessionStorage.getItem(ROLE_KEY) || "tenant";
 const cloneState = (value) => JSON.parse(JSON.stringify(value));
@@ -124,8 +140,20 @@ const pendingOwnerItems = () => ({
   payment: state.pendingPayment ? [state.pendingPayment] : [],
 });
 
-function renderOwnerDashboard() {
-  const pending = pendingOwnerItems();
+async function renderOwnerDashboard() {
+  let pending = pendingOwnerItems();
+  if (currentUser?.role === "owner" && authToken) {
+    try {
+      const result = await apiRequest("/api/owner/pending");
+      pending = {
+        maintenance: result.pending.filter((item) => item.type === "maintenance"),
+        booking: result.pending.filter((item) => item.type === "booking"),
+        payment: result.pending.filter((item) => item.type === "payment"),
+      };
+    } catch (error) {
+      console.error("Could not load owner queue:", error);
+    }
+  }
   document.querySelector("#owner-pending-count").textContent = pending.maintenance.length + pending.booking.length + pending.payment.length;
   document.querySelector("#owner-maintenance-list").innerHTML = pending.maintenance.length
     ? pending.maintenance.map(ownerRequestMarkup).join("")
@@ -134,11 +162,11 @@ function renderOwnerDashboard() {
     ? pending.booking.map(ownerRequestMarkup).join("")
     : '<p class="muted empty-events">No basement bookings awaiting approval.</p>';
   document.querySelector("#owner-payment-list").innerHTML = pending.payment.length
-    ? `<div class="owner-request"><div><b>${currentMonthLabel} rent payment</b><small>Submitted ${escapeHTML(pending.payment[0].detail)}</small></div><div class="owner-actions"><button class="button button-primary" data-owner-action="approve-payment">Approve</button><button class="button button-danger" data-owner-action="decline-payment">Decline</button></div></div>`
+    ? `<div class="owner-request"><div><b>${currentMonthLabel} rent payment</b><small>Submitted by ${escapeHTML(pending.payment[0].tenantName || "tenant")} · ${escapeHTML(pending.payment[0].detail)}</small></div><div class="owner-actions"><button class="button button-primary" data-owner-action="approve-payment" data-id="${escapeHTML(pending.payment[0].id)}" data-type="payment" data-tenant-id="${escapeHTML(pending.payment[0].tenantId || "")}">Approve</button><button class="button button-danger" data-owner-action="decline-payment" data-id="${escapeHTML(pending.payment[0].id)}" data-type="payment" data-tenant-id="${escapeHTML(pending.payment[0].tenantId || "")}">Decline</button></div></div>`
     : '<p class="muted empty-events">No rent payments awaiting confirmation.</p>';
 }
 
-const ownerRequestMarkup = (item) => `<div class="owner-request"><div><b>${escapeHTML(item.title)}</b><small>${escapeHTML(item.detail)}</small></div><div class="owner-actions"><button class="button button-primary" data-owner-action="approve" data-id="${escapeHTML(item.id)}" data-type="${escapeHTML(item.type)}">Approve</button><button class="button button-danger" data-owner-action="decline" data-id="${escapeHTML(item.id)}" data-type="${escapeHTML(item.type)}">Decline</button></div></div>`;
+const ownerRequestMarkup = (item) => `<div class="owner-request"><div><b>${escapeHTML(item.title)}</b><small>${escapeHTML(item.tenantName ? `${item.tenantName} · ${item.detail}` : item.detail)}</small></div><div class="owner-actions"><button class="button button-primary" data-owner-action="approve" data-id="${escapeHTML(item.id)}" data-type="${escapeHTML(item.type)}" data-tenant-id="${escapeHTML(item.tenantId || "")}">Approve</button><button class="button button-danger" data-owner-action="decline" data-id="${escapeHTML(item.id)}" data-type="${escapeHTML(item.type)}" data-tenant-id="${escapeHTML(item.tenantId || "")}">Decline</button></div></div>`;
 
 const activityMarkup = (activity) => `<div class="activity-item"><span class="activity-icon ${escapeHTML(activity.color)}">${escapeHTML(activity.icon)}</span><div><b>${escapeHTML(activity.title)}</b><small>${escapeHTML(activity.detail)}</small></div><span class="activity-status ${escapeHTML(activity.statusClass || "")}">${escapeHTML(activity.status)}</span>${activity.cancelable ? `<button class="cancel-link" data-action="cancel-item" data-id="${escapeHTML(activity.id)}" data-type="${escapeHTML(activity.type)}">Cancel</button>` : ""}</div>`;
 
@@ -226,7 +254,35 @@ function renderNotifications() {
     : '<p class="muted empty-events">No new notifications.</p>';
 }
 
-document.querySelector("#login-form").addEventListener("submit", (event) => { event.preventDefault(); showScreen("dashboard"); });
+const applyAuthenticatedUser = (result) => {
+  authToken = result.token || authToken;
+  if (authToken) sessionStorage.setItem(AUTH_TOKEN_KEY, authToken);
+  currentUser = result.user;
+  currentRole = currentUser.role;
+  sessionStorage.setItem(ROLE_KEY, currentRole);
+  state = result.state;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = currentUser.name; });
+  showScreen(currentRole === "owner" ? "owner-dashboard" : "dashboard");
+};
+document.querySelector("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    applyAuthenticatedUser(await apiRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) }));
+  } catch (error) {
+    window.alert(error.message);
+  }
+});
+document.querySelector("#register-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    applyAuthenticatedUser(await apiRequest("/api/auth/register", { method: "POST", body: JSON.stringify({ name: form.get("name"), email: form.get("email"), password: form.get("password") }) }));
+  } catch (error) {
+    window.alert(error.message);
+  }
+});
 document.querySelector(".toggle-password").addEventListener("click", (event) => {
   const input = event.currentTarget.previousElementSibling;
   const visible = input.type === "text";
@@ -238,6 +294,12 @@ document.addEventListener("click", (event) => {
   const routeButton = event.target.closest("[data-route]");
   if (routeButton) {
     event.preventDefault();
+    if (routeButton.dataset.route === "login") {
+      authToken = null;
+      currentUser = null;
+      sessionStorage.removeItem(AUTH_TOKEN_KEY);
+      sessionStorage.removeItem(ROLE_KEY);
+    }
     showScreen(routeButton.dataset.route);
     return;
   }
@@ -260,14 +322,24 @@ document.addEventListener("click", (event) => {
   const ownerAction = event.target.closest("[data-owner-action]");
   if (ownerAction) {
     const action = ownerAction.dataset.ownerAction;
-    if (action === "approve-payment") approvePayment();
-    else if (action === "decline-payment") declinePayment();
-    else decideOwnerRequest(ownerAction.dataset.id, ownerAction.dataset.type, action === "approve");
-    renderOwnerDashboard();
+    const approved = action === "approve" || action === "approve-payment";
+    if (authToken && currentUser?.role === "owner") {
+      apiRequest("/api/owner/decision", { method: "POST", body: JSON.stringify({ tenantId: Number(ownerAction.dataset.tenantId), id: ownerAction.dataset.id, type: ownerAction.dataset.type || "payment", approved }) })
+        .then(() => renderOwnerDashboard())
+        .catch((error) => window.alert(error.message));
+    } else {
+      if (action === "approve-payment") approvePayment();
+      else if (action === "decline-payment") declinePayment();
+      else decideOwnerRequest(ownerAction.dataset.id, ownerAction.dataset.type, approved);
+      renderOwnerDashboard();
+    }
     return;
   }
   if (event.target.closest("[data-action='owner-logout']")) {
     currentRole = "tenant";
+    authToken = null;
+    currentUser = null;
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
     sessionStorage.removeItem(ROLE_KEY);
     showScreen("login");
     return;
@@ -394,13 +466,9 @@ document.querySelector("#pay-now").addEventListener("click", submitPaymentForApp
 document.querySelector("#owner-login-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  if (form.get("email") !== OWNER_EMAIL || form.get("password") !== OWNER_PASSWORD) {
-    window.alert(`Use the demo owner account: ${OWNER_EMAIL} / ${OWNER_PASSWORD}`);
-    return;
-  }
-  currentRole = "owner";
-  sessionStorage.setItem(ROLE_KEY, currentRole);
-  showScreen("owner-dashboard");
+  apiRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) })
+    .then(applyAuthenticatedUser)
+    .catch((error) => window.alert(error.message));
 });
 
 renderDashboard();
@@ -418,4 +486,17 @@ document.querySelector("#payment-on-time-date").textContent = dateLabel(PAYMENT_
 document.querySelector("#payment-extended-dates").textContent = `${dateLabel(GRACE_START_KEY, { month: "short", day: "numeric" })} – ${dateLabel(GRACE_END_KEY, { month: "short", day: "numeric" })}`;
 document.querySelector("#maintenance-date").value = CURRENT_DATE_KEY;
 document.querySelector("#booking-date").value = dateKey(APP_NOW.year, APP_NOW.month, APP_NOW.day + 7);
-showScreen(currentRole === "owner" ? "owner-dashboard" : "login");
+if (authToken) {
+  apiRequest("/api/me").then((result) => {
+    currentUser = result.user;
+    currentRole = result.user.role;
+    state = result.state;
+    showScreen(currentRole === "owner" ? "owner-dashboard" : "dashboard");
+  }).catch(() => {
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(ROLE_KEY);
+    showScreen("login");
+  });
+} else {
+  showScreen("login");
+}
