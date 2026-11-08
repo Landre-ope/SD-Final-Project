@@ -4,10 +4,12 @@ const screens = [
   "success", "booking", "booking-success", "register", "owner-login", "owner-dashboard",
 ];
 const STORAGE_KEY = "tenanthub-demo-account";
+const ACCOUNT_KEY = "tenanthub-local-account";
+const SESSION_KEY = "tenanthub-session-user";
 const ROLE_KEY = "tenanthub-demo-role";
 const OWNER_EMAIL = "owner@tenanthub.test";
 const OWNER_PASSWORD = "owner123";
-const AUTH_TOKEN_KEY = "tenanthub-auth-token";
+const DEFAULT_TENANT = { name: "Landre Crisostomo", email: "tenant@example.com", password: "password", role: "tenant" };
 const RENT_AMOUNT = "₱6,000";
 const PHILIPPINE_TIME_ZONE = "Asia/Manila";
 const activityResetVersion = 3;
@@ -49,21 +51,9 @@ const defaultState = { events: defaultEvents, activities: [], payments: [
 ], currentPaymentPaid: false, paymentCycle: CURRENT_MONTH_KEY, activityResetVersion };
 defaultState.pendingPayment = null;
 
-let authToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
 let currentUser = null;
-const apiRequest = async (url, options = {}) => {
-  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
-  const response = await fetch(url, { ...options, headers });
-  const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.error || "Request failed.");
-  return body;
-};
 const saveState = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  if (authToken && currentUser?.role === "tenant") {
-    apiRequest("/api/state", { method: "PUT", body: JSON.stringify(state) }).catch((error) => console.error("Could not save account state:", error));
-  }
 };
 let state;
 let currentRole = sessionStorage.getItem(ROLE_KEY) || "tenant";
@@ -140,20 +130,8 @@ const pendingOwnerItems = () => ({
   payment: state.pendingPayment ? [state.pendingPayment] : [],
 });
 
-async function renderOwnerDashboard() {
-  let pending = pendingOwnerItems();
-  if (currentUser?.role === "owner" && authToken) {
-    try {
-      const result = await apiRequest("/api/owner/pending");
-      pending = {
-        maintenance: result.pending.filter((item) => item.type === "maintenance"),
-        booking: result.pending.filter((item) => item.type === "booking"),
-        payment: result.pending.filter((item) => item.type === "payment"),
-      };
-    } catch (error) {
-      console.error("Could not load owner queue:", error);
-    }
-  }
+function renderOwnerDashboard() {
+  const pending = pendingOwnerItems();
   document.querySelector("#owner-pending-count").textContent = pending.maintenance.length + pending.booking.length + pending.payment.length;
   document.querySelector("#owner-maintenance-list").innerHTML = pending.maintenance.length
     ? pending.maintenance.map(ownerRequestMarkup).join("")
@@ -254,34 +232,38 @@ function renderNotifications() {
     : '<p class="muted empty-events">No new notifications.</p>';
 }
 
-const applyAuthenticatedUser = (result) => {
-  authToken = result.token || authToken;
-  if (authToken) sessionStorage.setItem(AUTH_TOKEN_KEY, authToken);
-  currentUser = result.user;
+const applyAuthenticatedUser = (user, remember = true) => {
+  currentUser = user;
   currentRole = currentUser.role;
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+  if (remember) localStorage.setItem(ACCOUNT_KEY, JSON.stringify(currentUser));
   sessionStorage.setItem(ROLE_KEY, currentRole);
-  state = result.state;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = currentUser.name; });
   showScreen(currentRole === "owner" ? "owner-dashboard" : "dashboard");
 };
-document.querySelector("#login-form").addEventListener("submit", async (event) => {
+const findSavedUser = (email) => {
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const savedUser = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || JSON.stringify(DEFAULT_TENANT));
+  return savedUser?.email === normalizedEmail ? savedUser : null;
+};
+document.querySelector("#login-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  try {
-    applyAuthenticatedUser(await apiRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) }));
-  } catch (error) {
-    window.alert(error.message);
+  const email = String(form.get("email")).trim().toLowerCase();
+  const password = String(form.get("password"));
+  const savedUser = findSavedUser(email);
+  if (!savedUser || savedUser.password !== password || savedUser.role !== "tenant") {
+    window.alert("Incorrect email or password.");
+    return;
   }
+  applyAuthenticatedUser(savedUser, form.get("remember") !== null);
 });
-document.querySelector("#register-form").addEventListener("submit", async (event) => {
+document.querySelector("#register-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  try {
-    applyAuthenticatedUser(await apiRequest("/api/auth/register", { method: "POST", body: JSON.stringify({ name: form.get("name"), email: form.get("email"), password: form.get("password") }) }));
-  } catch (error) {
-    window.alert(error.message);
-  }
+  const user = { name: String(form.get("name")).trim(), email: String(form.get("email")).trim().toLowerCase(), password: String(form.get("password")), role: "tenant" };
+  localStorage.setItem(ACCOUNT_KEY, JSON.stringify(user));
+  applyAuthenticatedUser(user);
 });
 document.querySelector(".toggle-password").addEventListener("click", (event) => {
   const input = event.currentTarget.previousElementSibling;
@@ -295,9 +277,8 @@ document.addEventListener("click", (event) => {
   if (routeButton) {
     event.preventDefault();
     if (routeButton.dataset.route === "login") {
-      authToken = null;
       currentUser = null;
-      sessionStorage.removeItem(AUTH_TOKEN_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem(ROLE_KEY);
     }
     showScreen(routeButton.dataset.route);
@@ -323,23 +304,16 @@ document.addEventListener("click", (event) => {
   if (ownerAction) {
     const action = ownerAction.dataset.ownerAction;
     const approved = action === "approve" || action === "approve-payment";
-    if (authToken && currentUser?.role === "owner") {
-      apiRequest("/api/owner/decision", { method: "POST", body: JSON.stringify({ tenantId: Number(ownerAction.dataset.tenantId), id: ownerAction.dataset.id, type: ownerAction.dataset.type || "payment", approved }) })
-        .then(() => renderOwnerDashboard())
-        .catch((error) => window.alert(error.message));
-    } else {
-      if (action === "approve-payment") approvePayment();
-      else if (action === "decline-payment") declinePayment();
-      else decideOwnerRequest(ownerAction.dataset.id, ownerAction.dataset.type, approved);
-      renderOwnerDashboard();
-    }
+    if (action === "approve-payment") approvePayment();
+    else if (action === "decline-payment") declinePayment();
+    else decideOwnerRequest(ownerAction.dataset.id, ownerAction.dataset.type, approved);
+    renderOwnerDashboard();
     return;
   }
   if (event.target.closest("[data-action='owner-logout']")) {
     currentRole = "tenant";
-    authToken = null;
     currentUser = null;
-    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(ROLE_KEY);
     showScreen("login");
     return;
@@ -466,9 +440,12 @@ document.querySelector("#pay-now").addEventListener("click", submitPaymentForApp
 document.querySelector("#owner-login-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  apiRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) })
-    .then(applyAuthenticatedUser)
-    .catch((error) => window.alert(error.message));
+  const email = String(form.get("email")).trim().toLowerCase();
+  if (email !== OWNER_EMAIL || String(form.get("password")) !== OWNER_PASSWORD) {
+    window.alert("Incorrect owner email or password.");
+    return;
+  }
+  applyAuthenticatedUser({ name: "Property Owner", email, role: "owner" }, false);
 });
 
 renderDashboard();
@@ -486,17 +463,14 @@ document.querySelector("#payment-on-time-date").textContent = dateLabel(PAYMENT_
 document.querySelector("#payment-extended-dates").textContent = `${dateLabel(GRACE_START_KEY, { month: "short", day: "numeric" })} – ${dateLabel(GRACE_END_KEY, { month: "short", day: "numeric" })}`;
 document.querySelector("#maintenance-date").value = CURRENT_DATE_KEY;
 document.querySelector("#booking-date").value = dateKey(APP_NOW.year, APP_NOW.month, APP_NOW.day + 7);
-if (authToken) {
-  apiRequest("/api/me").then((result) => {
-    currentUser = result.user;
-    currentRole = result.user.role;
-    state = result.state;
-    showScreen(currentRole === "owner" ? "owner-dashboard" : "dashboard");
-  }).catch(() => {
-    sessionStorage.removeItem(AUTH_TOKEN_KEY);
-    sessionStorage.removeItem(ROLE_KEY);
-    showScreen("login");
-  });
+const savedSession = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null");
+const savedAccount = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "null");
+const savedUser = savedSession || savedAccount;
+if (savedUser) {
+  currentUser = savedUser;
+  currentRole = savedUser.role;
+  document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = savedUser.name; });
+  showScreen(currentRole === "owner" ? "owner-dashboard" : "dashboard");
 } else {
   showScreen("login");
 }
