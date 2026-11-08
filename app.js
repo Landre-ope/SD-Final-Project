@@ -361,6 +361,9 @@ document.querySelector(".toggle-password").addEventListener("click", (event) => 
   input.type = visible ? "password" : "text";
   event.currentTarget.textContent = visible ? "Show" : "Hide";
 });
+document.querySelector("#contact-back").addEventListener("click", () => {
+  showScreen(currentUser ? "dashboard" : "login");
+});
 
 document.addEventListener("click", (event) => {
   const routeButton = event.target.closest("[data-route]");
