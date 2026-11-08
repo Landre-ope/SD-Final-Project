@@ -9,7 +9,7 @@ const OWNER_EMAIL = "owner@tenanthub.test";
 const OWNER_PASSWORD = "owner123";
 const RENT_AMOUNT = "₱6,000";
 const PHILIPPINE_TIME_ZONE = "Asia/Manila";
-const activityResetVersion = 2;
+const activityResetVersion = 3;
 const partsForPhilippineNow = () => {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: PHILIPPINE_TIME_ZONE,
@@ -63,17 +63,15 @@ state.activities.forEach((activity) => { activity.detail = migrateRentAmount(act
 state.payments.forEach((payment) => { payment.amount = migrateRentAmount(payment.amount); });
 state.events = state.events.filter((event) => event.id || !["Maintenance visit", "Basement booking"].includes(event.title));
 state.activities = state.activities.filter((activity) => activity.id || !["Leaking faucet reported", "Basement reservation requested"].includes(activity.title));
-state.events = state.events.filter((event) => event.id || !["payment", "grace"].includes(event.type));
+state.events = state.events.filter((event) => !["maintenance", "booking", "payment", "grace"].includes(event.type));
 state.events = state.events.filter((event) => !event.date || event.date >= CURRENT_MONTH_KEY);
 if (state.activityResetVersion !== activityResetVersion) {
   state.activities = [];
   state.activityResetVersion = activityResetVersion;
 }
-if (state.paymentCycle !== CURRENT_MONTH_KEY) {
-  state.currentPaymentPaid = false;
-  state.pendingPayment = null;
-  state.paymentCycle = CURRENT_MONTH_KEY;
-}
+state.currentPaymentPaid = false;
+state.pendingPayment = null;
+state.paymentCycle = CURRENT_MONTH_KEY;
 state.events.push(...defaultEvents.filter((event) => !state.events.some((savedEvent) => savedEvent.date === event.date && savedEvent.type === event.type)));
 if (!Object.prototype.hasOwnProperty.call(state, "pendingPayment")) state.pendingPayment = null;
 saveState();
