@@ -1,9 +1,10 @@
 const screens = [
   "login", "dashboard", "calendar", "payments", "notifications", "profile",
   "activity", "forgot", "contact", "calendar-help", "maintenance", "review",
-  "success", "booking", "booking-success",
+  "success", "booking", "booking-success", "register",
 ];
 const STORAGE_KEY = "tenanthub-demo-account";
+const AUTH_TOKEN_KEY = "tenanthub-auth-token";
 const RENT_AMOUNT = "₱6,000";
 const PHILIPPINE_TIME_ZONE = "Asia/Manila";
 const activityResetVersion = 2;
@@ -45,7 +46,19 @@ const defaultState = { events: defaultEvents, activities: [], payments: [
 ], currentPaymentPaid: false, paymentCycle: CURRENT_MONTH_KEY, activityResetVersion };
 defaultState.pendingPayment = null;
 
-const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+let authToken = sessionStorage.getItem(AUTH_TOKEN_KEY);
+let currentUser = null;
+const apiRequest = async (url, options = {}) => {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const response = await fetch(url, { ...options, headers });
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Request failed.");
+  return response.status === 204 ? null : response.json();
+};
+const saveState = () => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (authToken) apiRequest("/api/state", { method: "PUT", body: JSON.stringify(state) }).catch((error) => console.error(error));
+};
 let state;
 const cloneState = (value) => JSON.parse(JSON.stringify(value));
 try {
@@ -202,7 +215,38 @@ function renderNotifications() {
     : '<p class="muted empty-events">No new notifications.</p>';
 }
 
-document.querySelector("#login-form").addEventListener("submit", (event) => { event.preventDefault(); showScreen("dashboard"); });
+document.querySelector("#login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    const result = await apiRequest("/api/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) });
+    authToken = result.token;
+    sessionStorage.setItem(AUTH_TOKEN_KEY, authToken);
+    currentUser = result.user;
+    state = result.state;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = currentUser.name; });
+    showScreen("dashboard");
+  } catch (error) {
+    window.alert(error.message);
+  }
+});
+document.querySelector("#register-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    const result = await apiRequest("/api/auth/register", { method: "POST", body: JSON.stringify({ name: form.get("name"), email: form.get("email"), password: form.get("password") }) });
+    authToken = result.token;
+    sessionStorage.setItem(AUTH_TOKEN_KEY, authToken);
+    currentUser = result.user;
+    state = result.state;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    document.querySelectorAll("[data-user-name]").forEach((element) => { element.textContent = currentUser.name; });
+    showScreen("dashboard");
+  } catch (error) {
+    window.alert(error.message);
+  }
+});
 document.querySelector(".toggle-password").addEventListener("click", (event) => {
   const input = event.currentTarget.previousElementSibling;
   const visible = input.type === "text";
@@ -352,3 +396,4 @@ document.querySelector("#payment-on-time-date").textContent = dateLabel(PAYMENT_
 document.querySelector("#payment-extended-dates").textContent = `${dateLabel(GRACE_START_KEY, { month: "short", day: "numeric" })} – ${dateLabel(GRACE_END_KEY, { month: "short", day: "numeric" })}`;
 document.querySelector("#maintenance-date").value = CURRENT_DATE_KEY;
 document.querySelector("#booking-date").value = dateKey(APP_NOW.year, APP_NOW.month, APP_NOW.day + 7);
+showScreen(authToken ? "dashboard" : "login");
